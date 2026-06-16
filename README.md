@@ -45,8 +45,8 @@ Building this application required solving several complex issues:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/kencoelhoo-source/student-return-help.git
-   cd student-return-help
+   git clone https://github.com/kencoelhoo-source/campusfind.git
+   cd campusfind
    ```
 
 2. **Install dependencies**
