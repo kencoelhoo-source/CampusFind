@@ -1,5 +1,5 @@
 // CampusFind Authentication Page
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -9,6 +9,43 @@ import { Search } from "lucide-react";
 export default function Auth() {
   const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const checkErrors = () => {
+      const hash = window.location.hash;
+      const search = window.location.search;
+      let errorMsg = "";
+
+      if (hash) {
+        const params = new URLSearchParams(hash.substring(1));
+        const errorDesc = params.get("error_description");
+        if (errorDesc) errorMsg = errorDesc;
+      }
+
+      if (!errorMsg && search) {
+        const params = new URLSearchParams(search);
+        const errorDesc = params.get("error_description");
+        if (errorDesc) errorMsg = errorDesc;
+      }
+
+      if (errorMsg) {
+        let friendlyMsg = errorMsg.replace(/\+/g, " ");
+        if (
+          friendlyMsg.toLowerCase().includes("check_signup_email_domain") || 
+          friendlyMsg.toLowerCase().includes("sfit") || 
+          friendlyMsg.toLowerCase().includes("domain")
+        ) {
+          friendlyMsg = "Access Denied: Only SFIT email domains (@student.sfit.ac.in or @sfit.ac.in) are allowed.";
+        }
+        toast.error(friendlyMsg);
+        
+        // Clear the error parameters from the address bar
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    };
+
+    checkErrors();
+  }, []);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
