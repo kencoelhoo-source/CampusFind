@@ -85,15 +85,15 @@ export default function Index() {
         <div className="container grid grid-cols-3 gap-4 py-10 text-center">
           <div className="animate-count-up">
             <span className="text-3xl font-semibold tracking-tight text-foreground">{stats.total}</span>
-            <p className="mt-1 text-[12px] font-medium uppercase tracking-wider text-muted-foreground">Total Items</p>
+            <p className="mt-1 text-[12px] font-medium uppercase tracking-wider text-muted-foreground">Total Reports</p>
           </div>
           <div className="animate-count-up" style={{ animationDelay: "0.1s" }}>
             <span className="text-3xl font-semibold tracking-tight text-foreground">{stats.lost}</span>
-            <p className="mt-1 text-[12px] font-medium uppercase tracking-wider text-muted-foreground">Lost</p>
+            <p className="mt-1 text-[12px] font-medium uppercase tracking-wider text-muted-foreground">Reported Lost</p>
           </div>
           <div className="animate-count-up" style={{ animationDelay: "0.2s" }}>
             <span className="text-3xl font-semibold tracking-tight text-foreground">{stats.found}</span>
-            <p className="mt-1 text-[12px] font-medium uppercase tracking-wider text-muted-foreground">Found</p>
+            <p className="mt-1 text-[12px] font-medium uppercase tracking-wider text-muted-foreground">Reported Found</p>
           </div>
         </div>
       </section>
