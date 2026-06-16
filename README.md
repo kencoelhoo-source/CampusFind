@@ -1,87 +1,77 @@
-# SFIT Lost & Found Portal 🕵️‍♂️🔍
+# CampusFind - SFIT Lost & Found Portal
 
-> A modern, AI-powered campus portal for SFIT students to report, search, and reclaim lost items through a secure and community-driven flow.
+A web-based portal for SFIT students to report, search, and reclaim lost or found items through a secure and structured verification system.
 
-Losing personal belongings on a busy college campus is a universally stressful experience. We built the **SFIT Lost & Found Portal** to solve this exact problem—giving our campus community a simple, modern, and unified platform to reconnect people with their belongings.
+CampusFind provides a central platform for the campus community to list misplaced items, browse active listings, and verify ownership through a private claim flow.
 
----
+## Core Features
 
-## ✨ Key Features
+*   **User Authentication**: Secure signup and login integrated with user profiles.
+*   **Item Listing**: Report lost or found items with titles, descriptions, specific locations, dates, and multiple image uploads.
+*   **Advanced Search & Filter**: Filter listings by status (lost, found, claimed, returned), category, and location, or search by text keywords.
+*   **Secure Claim Verification**: Claim items by submitting proof of ownership. The listing creator can review claims, ask custom verification questions, suggest in-person meeting details, approve/reject claims, and process appeals.
+*   **Real-time Alerts**: In-app notifications to track active claims, claim updates, and meeting details.
+*   **Responsive UI**: Optimized for mobile and desktop screens using a clean, modern interface.
 
-- **Real-time Reporting:** Instant posting of lost or found items with image uploads and location tags.
-- **Smart Browsing:** Drop-down filters and search functionalities to quickly navigate a centralized feed of reported items by category, date, and status.
-- **Secure Claim Verification:** A secure system where users can claim items they have lost. The finder can verify the claim through specific questions.
-- **AI Matching (Experimental):** Integration with the **Gemini AI API** to automatically suggest potential matches between reported lost items and newly found items based on image and text analysis.
-- **Premium User Interface:** Designed with a clean, "Apple-like" aesthetic featuring smooth micro-animations, glassmorphic effects, and responsive design.
+## Tech Stack
 
-## 🛠️ Built With
+*   **Frontend**: React, TypeScript, Vite
+*   **Styling & Components**: Tailwind CSS, shadcn/ui, Lucide Icons
+*   **Backend & Database**: Supabase (PostgreSQL database, authentication, and file storage)
+*   **State & Form Validation**: TanStack Query (React Query), React Hook Form, Zod
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | React 18, TypeScript, Vite |
-| **UI Components** | shadcn/ui, Tailwind CSS, Lucide Icons |
-| **Backend & Database** | Supabase (PostgreSQL) |
-| **Authentication** | Supabase Auth (PKCE flow) |
-| **Storage & Logic** | Supabase Storage & Edge Functions |
-| **State & Forms** | React Query (TanStack Query), React Hook Form, Zod |
-| **AI Integration** | Gemini API |
-
-## 🚧 Challenges Faced
-Building this application required solving several complex issues:
-*   **Secure Claim Routing:** Designing a secure flow where a claimant and a finder can communicate without exposing sensitive personal contact information until a claim is explicitly approved. Building the complex database schema with the correct Supabase RLS policies required careful planning.
-*   **UI Polish:** Achieving the minimalistic, premium aesthetic we wanted meant spending significant time fine-tuning micro-animations, glassmorphic effects, and typography.
-*   **AI Integration:** Getting the Gemini API to accurately parse item descriptions and suggest reliable matches across different text inputs required several iterations of prompt engineering within our Edge Functions.
-
----
-
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) v18 or higher
-- npm (comes with Node.js)
-- A [Supabase](https://supabase.com/) project (free tier works)
+
+*   Node.js v18 or higher
+*   npm (installed with Node.js)
+*   A Supabase project instance
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/kencoelhoo-source/campusfind.git
-   cd campusfind
-   ```
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/kencoelhoo-source/CampusFind.git
+    cd campusfind
+    ```
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+2.  **Install dependencies**
+    ```bash
+    npm install
+    ```
 
-3. **Set up environment variables**
-   Create a `.env` file in the root directory:
-   ```env
-   VITE_SUPABASE_PROJECT_ID=your_project_id
-   VITE_SUPABASE_PUBLISHABLE_KEY=your_anon_key
-   VITE_SUPABASE_URL=https://your-project-id.supabase.co
-   ```
+3.  **Configure Environment Variables**
+    Create a `.env` file in the root directory:
+    ```env
+    VITE_SUPABASE_PROJECT_ID=your_supabase_project_id
+    VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+    VITE_SUPABASE_URL=https://your-project-id.supabase.co
+    ```
 
-4. **Run the database migrations**
-   Apply the SQL migration files located in `supabase/migrations/` to your Supabase project via the SQL Editor in the Supabase Dashboard.
+4.  **Set up Database Schema**
+    Execute the SQL files located in the `supabase/migrations/` directory within your Supabase project's SQL Editor to set up the tables, Row Level Security (RLS) policies, and triggers.
 
-5. **Start the development server**
-   ```bash
-   npm run dev
-   ```
-   The app will be available at `http://localhost:5173`.
+5.  **Run Development Server**
+    ```bash
+    npm run dev
+    ```
+    Open `http://localhost:8080` in your web browser.
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 src/
-├── components/       # Reusable UI components
-├── lib/              # Supabase client, auth context, utilities
-├── pages/            # Application pages (Home, Items, Dashboard, etc.)
-└── App.tsx           # Root component with routing
+├── components/       # Reusable UI components (Navbar, ItemCard, SearchFilters, etc.)
+├── hooks/            # Custom react hooks (theme, mobile detection, toast alerts)
+├── integrations/     # Supabase connection client and schema types
+├── lib/              # Core functions (auth contexts, validation rules, constants, state helpers)
+├── pages/            # Application pages (Auth, Dashboard, Index, ItemDetail, Items, PostItem)
+└── main.tsx          # App entry point
 ```
 
-## s License
+## License
+
 This project is open source and available for educational purposes.
 
 ---
