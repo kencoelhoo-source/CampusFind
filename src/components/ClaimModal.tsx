@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { notifyUser } from "@/lib/notifications";
 import { validateClaimMessage } from "@/lib/item-validation";
 
 interface ClaimModalProps {
@@ -36,21 +35,13 @@ export function ClaimModal({ open, onOpenChange, itemId, itemTitle, itemOwnerId,
     try {
       const trimmedMessage = message.trim();
 
-      const { data: claim, error } = await supabase.from("claims").insert({
+      const { error } = await supabase.from("claims").insert({
         item_id: itemId,
         user_id: user.id,
         message: trimmedMessage,
-      }).select("id").single();
+      });
 
       if (error) throw error;
-
-      await notifyUser({
-        userId: itemOwnerId,
-        title: "New claim on your item",
-        message: `Someone claimed "${itemTitle}". Check your dashboard to review.`,
-        relatedItemId: itemId,
-        relatedClaimId: claim.id,
-      });
 
       toast.success("Claim submitted! The owner will be notified.");
       setMessage("");

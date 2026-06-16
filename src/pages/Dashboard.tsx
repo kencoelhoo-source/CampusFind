@@ -10,7 +10,6 @@ import { STATUS_COLORS } from "@/lib/constants";
 import { format } from "date-fns";
 import { Bell, Package, Search, CheckCircle, Trash2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { notifyUser } from "@/lib/notifications";
 
 interface DBItem {
   id: string;
@@ -172,8 +171,6 @@ export default function Dashboard() {
     claimId: string,
     status: "approved" | "rejected",
     itemId: string,
-    claimantUserId: string,
-    notificationMessage: string,
     approvedItemStatus: "claimed" | "returned" = "claimed",
   ) => {
     const { error } = await supabase.from("claims").update({ status: status as never }).eq("id", claimId);
@@ -191,20 +188,6 @@ export default function Dashboard() {
       }
     }
 
-    try {
-      await notifyUser({
-        userId: claimantUserId,
-        title: "Claim Update",
-        message: notificationMessage,
-        relatedClaimId: claimId,
-        relatedItemId: itemId,
-      });
-    } catch (notificationError) {
-      toast.error(notificationError instanceof Error ? notificationError.message : "Claim updated, but notification failed.");
-      await refreshQueries();
-      return;
-    }
-
     toast.success(`Claim ${status}`);
     await refreshQueries();
   };
@@ -213,31 +196,12 @@ export default function Dashboard() {
     claimId: string,
     payload: Partial<DBClaim>,
     successMsg: string,
-    notifUserId?: string,
-    notifMsg?: string,
-    itemId?: string,
   ) => {
     const { error } = await supabase.from("claims").update(payload as never).eq("id", claimId);
 
     if (error) {
       toast.error(`Error: ${error.message}`);
       return;
-    }
-
-    if (notifUserId && notifMsg) {
-      try {
-        await notifyUser({
-          userId: notifUserId,
-          title: "Claim Update",
-          message: notifMsg,
-          relatedClaimId: claimId,
-          relatedItemId: itemId || null,
-        });
-      } catch (notificationError) {
-        toast.error(notificationError instanceof Error ? notificationError.message : "Action saved, but notification failed.");
-        await refreshQueries();
-        return;
-      }
     }
 
     toast.success(successMsg);
@@ -329,9 +293,6 @@ export default function Dashboard() {
                           claim.id,
                           { verification_answer: answer },
                           "Answer submitted",
-                          claim.items?.user_id,
-                          "The claimant answered your verification question.",
-                          claim.item_id,
                         );
                       }}>
                         <textarea name="answer" placeholder="Your answer..." className="w-full rounded-md border bg-background p-2 text-sm" rows={2} required />
@@ -345,9 +306,6 @@ export default function Dashboard() {
                               claim.id,
                               { meeting_requested: true, verification_answer: null },
                               "Meeting requested",
-                              claim.items?.user_id,
-                              "The claimant wants to meet in person to verify.",
-                              claim.item_id,
                             )}
                           >
                             Request to Meet in Person instead
@@ -382,9 +340,6 @@ export default function Dashboard() {
                         claim.id,
                         { appeal_message: appeal, status: "pending" },
                         "Appeal submitted",
-                        claim.items?.user_id,
-                        "The claimant has submitted an appeal with more details.",
-                        claim.item_id,
                       );
                     }}>
                       <textarea name="appeal" placeholder="Describe where you lost it, identifying marks, and anything only the owner would know." className="w-full rounded-md border bg-background p-2 text-sm" rows={3} required />
@@ -431,9 +386,6 @@ export default function Dashboard() {
                         claim.id,
                         { verification_question: question },
                         "Question sent",
-                        claim.user_id,
-                        "The reporter has a verification question for you.",
-                        claim.item_id,
                       );
                     }}>
                       <p className="mb-1 text-sm font-medium">Verify Ownership (Optional)</p>
@@ -444,8 +396,8 @@ export default function Dashboard() {
                     </form>
 
                     <div className="mt-4 flex gap-2 border-t pt-4">
-                      <Button size="sm" onClick={() => updateClaimStatus(claim.id, "approved", claim.item_id, claim.user_id, "Your claim was approved.")}>Approve Claim</Button>
-                      <Button size="sm" variant="outline" onClick={() => updateClaimStatus(claim.id, "rejected", claim.item_id, claim.user_id, "Your claim was rejected.")}>Reject</Button>
+                      <Button size="sm" onClick={() => updateClaimStatus(claim.id, "approved", claim.item_id)}>Approve Claim</Button>
+                      <Button size="sm" variant="outline" onClick={() => updateClaimStatus(claim.id, "rejected", claim.item_id)}>Reject</Button>
                     </div>
                   </div>
                 )}
@@ -463,8 +415,8 @@ export default function Dashboard() {
                     <p className="mt-2 text-sm text-muted-foreground">Your Q: {claim.verification_question}</p>
                     <p className="mt-1 text-sm font-semibold">Their A: {claim.verification_answer}</p>
                     <div className="mt-3 flex gap-2">
-                      <Button size="sm" onClick={() => updateClaimStatus(claim.id, "approved", claim.item_id, claim.user_id, "Your claim was approved.")}>Approve</Button>
-                      <Button size="sm" variant="outline" onClick={() => updateClaimStatus(claim.id, "rejected", claim.item_id, claim.user_id, "Your claim was rejected.")}>Reject</Button>
+                      <Button size="sm" onClick={() => updateClaimStatus(claim.id, "approved", claim.item_id)}>Approve</Button>
+                      <Button size="sm" variant="outline" onClick={() => updateClaimStatus(claim.id, "rejected", claim.item_id)}>Reject</Button>
                     </div>
                   </div>
                 )}
@@ -480,15 +432,12 @@ export default function Dashboard() {
                         claim.id,
                         { meeting_details: details },
                         "Meeting details sent",
-                        claim.user_id,
-                        "The reporter sent meeting details.",
-                        claim.item_id,
                       );
                     }}>
                       <textarea name="details" placeholder="Where and when? e.g., Library cafe at 3 PM today." className="w-full rounded-md border bg-background p-2 text-sm" rows={2} required />
                       <div className="mt-2 flex gap-2">
                         <Button size="sm" type="submit">Send Details</Button>
-                        <Button size="sm" variant="outline" type="button" onClick={() => updateClaimStatus(claim.id, "rejected", claim.item_id, claim.user_id, "Your claim was rejected.")}>Reject Claim</Button>
+                        <Button size="sm" variant="outline" type="button" onClick={() => updateClaimStatus(claim.id, "rejected", claim.item_id)}>Reject Claim</Button>
                       </div>
                     </form>
                   </div>
@@ -505,8 +454,6 @@ export default function Dashboard() {
                           claim.id,
                           "approved",
                           claim.item_id,
-                          claim.user_id,
-                          "Your item has been marked as returned.",
                           "returned",
                         )}
                       >
@@ -521,7 +468,7 @@ export default function Dashboard() {
                     <p className="text-sm font-bold text-red-800">Appeal from Claimant</p>
                     <p className="mt-2 text-sm">"{claim.appeal_message}"</p>
                     <div className="mt-3 flex gap-2">
-                      <Button size="sm" onClick={() => updateClaimStatus(claim.id, "approved", claim.item_id, claim.user_id, "Your appeal was approved.")}>Approve Appeal</Button>
+                      <Button size="sm" onClick={() => updateClaimStatus(claim.id, "approved", claim.item_id)}>Approve Appeal</Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -529,9 +476,6 @@ export default function Dashboard() {
                           claim.id,
                           { status: "rejected" },
                           "Appeal rejected",
-                          claim.user_id,
-                          "Your appeal was rejected.",
-                          claim.item_id,
                         )}
                       >
                         Reject Again
