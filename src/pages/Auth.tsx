@@ -45,6 +45,13 @@ export default function Auth() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const emailDomain = signupEmail.split("@")[1]?.toLowerCase();
+    if (emailDomain !== "student.sfit.ac.in" && emailDomain !== "sfit.ac.in") {
+      toast.error("Only SFIT email addresses (@student.sfit.ac.in or @sfit.ac.in) are allowed to sign up.");
+      return;
+    }
+
     if (signupPassword.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
