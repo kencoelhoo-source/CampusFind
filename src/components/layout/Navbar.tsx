@@ -46,7 +46,7 @@ export function Navbar() {
     refetchInterval: 15000,
   });
 
-  const overlay = pathname === "/" && !scrolled && !mobileOpen;
+  const overlay = (pathname === "/" || pathname === "/auth") && !scrolled && !mobileOpen;
 
   useEffect(() => {
     const onScroll = () => {

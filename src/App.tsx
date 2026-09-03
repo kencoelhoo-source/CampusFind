@@ -48,7 +48,7 @@ function AppShell() {
       <AuthCurtain />
       <div className="flex min-h-screen flex-col">
         <Navbar />
-        <main className={cn("page-shell", pathname !== "/" && "pt-14")}>
+        <main className={cn("page-shell", pathname !== "/" && pathname !== "/auth" && "pt-14")}>
           <Suspense fallback={<RouteFallback />}>
             <PageTransition>
               <Routes>

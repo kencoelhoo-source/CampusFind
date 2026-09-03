@@ -56,7 +56,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="relative flex min-h-[calc(100dvh-3.5rem)] w-full flex-col justify-between overflow-x-hidden">
+    <div className="relative flex h-[100dvh] w-full flex-col justify-between overflow-hidden overscroll-none bg-[#1a1715]">
       {/* Laptop / Desktop Full-Bleed Background (16:9 Composition) */}
       <img
         src={sfitWallDesktop}
@@ -64,21 +64,18 @@ export default function Auth() {
         className="pointer-events-none absolute inset-0 hidden h-full w-full object-cover object-center md:block"
       />
 
-      {/* Mobile Continuous Photographic Background (Framed tightly to top-right corner) */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden md:hidden">
+      {/* Mobile Continuous Photographic Background (Framed tightly to top-right corner, locked against zoom & scroll) */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden bg-[#1a1715] md:hidden">
         <img
           src={sfitWallMobile}
           alt="SFIT Campus Seal"
-          className="absolute h-[118%] w-[118%] max-w-none object-cover"
-          style={{
-            top: "0%",
-            right: "-10%",
-          }}
+          className="absolute inset-0 h-full w-full object-cover object-[center_top]"
         />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/50" />
       </div>
 
       {/* Login UI Overlay (Positioned in the open stone wall space below the emblem) */}
-      <div className="relative z-10 flex min-h-[calc(100dvh-3.5rem)] w-full flex-col justify-between px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-6 sm:px-8 sm:pb-8 sm:pt-10 md:justify-center md:px-16 md:py-12 lg:pl-24 xl:pl-32">
+      <div className="relative z-10 flex h-full w-full flex-col justify-between px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-[calc(4.25rem+env(safe-area-inset-top,0px))] sm:px-8 sm:pb-8 sm:pt-16 md:justify-center md:px-16 md:py-12 lg:pl-24 xl:pl-32">
         {/* Login Group: Left-aligned across all mobile sizes with stacked heading above description */}
         <div className="mt-auto mb-10 sm:mb-14 md:my-auto md:mt-auto md:mb-auto flex flex-col items-start text-left w-full max-w-[260px] xs:max-w-[280px] min-[375px]:max-w-[320px] md:max-w-md">
           {/* Heading: "CampusFind" drops to second line on mobile (320px, 375px, 425px), inline on desktop */}
