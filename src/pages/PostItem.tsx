@@ -10,14 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CATEGORIES, LOCATIONS } from "@/lib/constants";
-import { useAuth } from "@/lib/auth";
+import { CATEGORIES, LOCATIONS } from "@/constants";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { CalendarIcon, X, Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { dedupeFiles, MAX_ITEM_IMAGES, validateItemImage } from "@/lib/item-validation";
+import { dedupeFiles, MAX_ITEM_IMAGES, validateItemImage } from "@/features/items/utils/item-validation";
 
 export default function PostItem() {
   const { user } = useAuth();
@@ -146,17 +146,20 @@ export default function PostItem() {
   };
 
   return (
-    <div className="container max-w-2xl py-8">
-      <Card className="shadow-card">
-        <CardHeader>
-          <CardTitle className="font-display text-2xl">Report an Item</CardTitle>
+    <div className="container max-w-2xl py-12 md:py-16">
+      <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">New listing</p>
+      <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight">Report an item</h1>
+      <p className="mt-3 text-[15px] text-muted-foreground">A few details are enough. Photos help more than a long story.</p>
+      <Card className="mt-8 border-0">
+        <CardHeader className="sr-only">
+          <CardTitle>Report an item</CardTitle>
           <CardDescription>Help your campus community by reporting a lost or found item.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           <Tabs value={itemType} onValueChange={(v) => setItemType(v as "lost" | "found")} className="mb-6">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="lost">🔍 I Lost Something</TabsTrigger>
-              <TabsTrigger value="found">📦 I Found Something</TabsTrigger>
+              <TabsTrigger value="lost">I lost something</TabsTrigger>
+              <TabsTrigger value="found">I found something</TabsTrigger>
             </TabsList>
           </Tabs>
 
@@ -212,7 +215,7 @@ export default function PostItem() {
               <Label>Photos (max 5)</Label>
               <div className="flex flex-wrap gap-3">
                 {previews.map((preview, i) => (
-                  <div key={i} className="relative h-20 w-20 overflow-hidden rounded-lg border">
+                  <div key={i} className="relative h-20 w-20 overflow-hidden rounded-2xl border">
                     <img src={preview} alt="" className="h-full w-full object-cover" />
                     <button type="button" onClick={() => removeImage(i)} className="absolute right-1 top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground">
                       <X className="h-3 w-3" />
@@ -220,7 +223,7 @@ export default function PostItem() {
                   </div>
                 ))}
                 {images.length < MAX_ITEM_IMAGES && (
-                  <label className="flex h-20 w-20 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 text-muted-foreground transition-colors hover:border-primary hover:text-primary">
+                  <label className="flex h-20 w-20 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-muted-foreground/25 text-muted-foreground transition-colors duration-300 ease-apple hover:border-primary hover:text-primary">
                     <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageAdd} />
                     <div className="text-center">
                       <ImageIcon className="mx-auto h-5 w-5" />
@@ -231,7 +234,7 @@ export default function PostItem() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full bg-gradient-hero" size="lg" disabled={loading}>
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
               {loading ? "Posting..." : `Post ${itemType === "lost" ? "Lost" : "Found"} Item`}
             </Button>
           </form>

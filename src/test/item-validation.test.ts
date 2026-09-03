@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dedupeFiles, MAX_ITEM_IMAGES, validateClaimMessage, validateItemImage } from "@/lib/item-validation";
+import { dedupeFiles, MAX_ITEM_IMAGES, validateClaimMessage, validateItemImage } from "@/features/items/utils/item-validation";
 
 describe("item validation", () => {
   it("deduplicates file selections by stable file metadata", () => {
@@ -28,7 +28,7 @@ describe("item validation", () => {
   });
 
   it("enforces a minimum claim message length", () => {
-    expect(validateClaimMessage("too short")).toContain("at least 15 characters");
+    expect(validateClaimMessage("too short")).toContain("Add a bit more detail");
     expect(validateClaimMessage("This claim message is detailed enough.")).toBeNull();
   });
 

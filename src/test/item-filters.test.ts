@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultBrowseFilters, filtersFromSearchParams, filtersToSearchParams } from "@/lib/item-filters";
+import { defaultBrowseFilters, filtersFromSearchParams, filtersToSearchParams } from "@/features/items/utils/item-filters";
 
 describe("item filters", () => {
   it("reads defaults from an empty query string", () => {

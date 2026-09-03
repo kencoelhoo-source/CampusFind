@@ -1,53 +1,23 @@
 import { Link, useSearchParams, Navigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { STATUS_COLORS } from "@/lib/constants";
+import { STATUS_COLORS } from "@/constants";
 import { format } from "date-fns";
 import { Bell, Package, Search, CheckCircle, Trash2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-
-interface DBItem {
-  id: string;
-  title: string;
-  status: "lost" | "found" | "claimed" | "returned";
-  created_at: string;
-  user_id?: string;
-}
-
-interface DBClaim {
-  id: string;
-  item_id: string;
-  user_id: string;
-  message: string;
-  status: "pending" | "approved" | "rejected";
-  verification_question: string | null;
-  verification_answer: string | null;
-  meeting_requested: boolean;
-  meeting_details: string | null;
-  appeal_message: string | null;
-  items?: { title: string; user_id?: string; status?: string };
-  profiles?: { full_name: string } | null;
-}
-
-interface DBNotification {
-  id: string;
-  title: string;
-  message: string;
-  created_at: string;
-  read: boolean;
-}
-
-interface DashboardData {
-  myItems: DBItem[];
-  myClaims: DBClaim[];
-  notifications: DBNotification[];
-  incomingClaims: DBClaim[];
-}
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { notifyUser } from "@/services/notifications";
+import type { DBItem, DBClaim, DBNotification, DashboardData } from "@/types/database";
 
 async function fetchDashboardData(userId: string): Promise<DashboardData> {
   const [itemsRes, claimsRes, notifsRes, incomingRes] = await Promise.all([
@@ -167,59 +137,67 @@ export default function Dashboard() {
     await refreshQueries();
   };
 
-  const updateClaimStatus = async (
+  const resolveIncoming = async (
     claimId: string,
-    status: "approved" | "rejected",
     itemId: string,
-    approvedItemStatus: "claimed" | "returned" = "claimed",
+    status: "approved" | "rejected",
+    meetup?: string,
   ) => {
-    const { error } = await supabase.from("claims").update({ status: status as never }).eq("id", claimId);
+    const payload: Partial<DBClaim> = { status };
+    if (status === "approved" && meetup?.trim()) {
+      payload.meeting_details = meetup.trim();
+      payload.meeting_requested = true;
+    }
+
+    const { error } = await supabase.from("claims").update(payload as never).eq("id", claimId);
     if (error) {
       toast.error(`Failed to update claim: ${error.message}`);
       return;
     }
 
     if (status === "approved") {
-      const { error: itemError } = await supabase.from("items").update({ status: approvedItemStatus as never }).eq("id", itemId);
-
+      const { error: itemError } = await supabase.from("items").update({ status: "claimed" as never }).eq("id", itemId);
       if (itemError) {
         toast.error(`Claim updated, but item status failed: ${itemError.message}`);
         return;
       }
     }
 
-    toast.success(`Claim ${status}`);
-    await refreshQueries();
-  };
-
-  const updateClaim = async (
-    claimId: string,
-    payload: Partial<DBClaim>,
-    successMsg: string,
-  ) => {
-    const { error } = await supabase.from("claims").update(payload as never).eq("id", claimId);
-
-    if (error) {
-      toast.error(`Error: ${error.message}`);
-      return;
+    // Notify the claimant of the decision
+    const targetClaim = incomingClaims.find((c) => c.id === claimId);
+    if (targetClaim?.user_id) {
+      try {
+        await notifyUser({
+          userId: targetClaim.user_id,
+          title: status === "approved" ? `Claim Accepted: "${targetClaim.items?.title || "Item"}"` : `Claim Declined: "${targetClaim.items?.title || "Item"}"`,
+          message: status === "approved"
+            ? `Your claim was accepted! Meetup info: ${meetup?.trim() || "Check your claims tab on CampusFind."}`
+            : `Your claim for "${targetClaim.items?.title || "Item"}" was declined.`,
+          relatedItemId: itemId,
+          relatedClaimId: claimId,
+        });
+      } catch (notifErr) {
+        console.warn("Could not dispatch notification to claimant:", notifErr);
+      }
     }
 
-    toast.success(successMsg);
+    toast.success(status === "approved" ? "Accepted. Arrange the handover on campus." : "Claim declined.");
     await refreshQueries();
   };
 
   return (
-    <div className="container py-8">
-      <h1 className="font-display text-3xl font-bold">Dashboard</h1>
-      <p className="mt-1 text-muted-foreground">Manage your items, claims, and notifications.</p>
+    <div className="container py-12 md:py-16">
+      <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Account</p>
+      <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight">Dashboard</h1>
+      <p className="mt-2 text-[15px] text-muted-foreground">Listings, incoming claims, and alerts. Accept or decline — then meet on campus.</p>
 
-      <Tabs defaultValue={defaultTab} className="mt-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="my-items"><Package className="mr-1 h-4 w-4 hidden sm:block" /> My Items</TabsTrigger>
-          <TabsTrigger value="my-claims"><Search className="mr-1 h-4 w-4 hidden sm:block" /> My Claims</TabsTrigger>
-          <TabsTrigger value="incoming"><CheckCircle className="mr-1 h-4 w-4 hidden sm:block" /> Incoming</TabsTrigger>
+      <Tabs defaultValue={defaultTab} className="mt-8">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
+          <TabsTrigger value="my-items"><Package className="mr-1 hidden h-4 w-4 sm:block" /> My items</TabsTrigger>
+          <TabsTrigger value="my-claims"><Search className="mr-1 hidden h-4 w-4 sm:block" /> My claims</TabsTrigger>
+          <TabsTrigger value="incoming"><CheckCircle className="mr-1 hidden h-4 w-4 sm:block" /> Incoming</TabsTrigger>
           <TabsTrigger value="notifications" className="relative">
-            <Bell className="mr-1 h-4 w-4 hidden sm:block" /> Alerts
+            <Bell className="mr-1 hidden h-4 w-4 sm:block" /> Alerts
             {unreadCount > 0 && (
               <span className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
                 {unreadCount}
@@ -230,7 +208,7 @@ export default function Dashboard() {
 
         <TabsContent value="my-items" className="mt-4 space-y-3">
           {isLoading ? <SkeletonList /> : myItems.length === 0 ? (
-            <EmptyState text="You haven't posted any items yet." action={<Button asChild><Link to="/post">Post an Item</Link></Button>} />
+            <EmptyState text="You haven't posted any items yet." action={<Button asChild><Link to="/post">Post an item</Link></Button>} />
           ) : myItems.map((item) => {
             const itemStyle = STATUS_COLORS[item.status];
 
@@ -246,15 +224,32 @@ export default function Dashboard() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    {item.status === "lost" && (
+                      <Button size="sm" variant="outline" onClick={() => setItemStatus(item.id, "returned", "Item marked as resolved")}>
+                        <CheckCircle className="mr-1 h-3.5 w-3.5 text-success" /> Mark Resolved
+                      </Button>
+                    )}
                     {(item.status === "found" || item.status === "claimed") && (
                       <Button size="sm" variant="outline" onClick={() => setItemStatus(item.id, "returned", "Item marked as returned")}>
-                        Mark Returned
+                        <CheckCircle className="mr-1 h-3.5 w-3.5 text-success" /> Mark Returned
                       </Button>
                     )}
                     {item.status === "returned" && (
-                      <Button size="sm" variant="outline" onClick={() => setItemStatus(item.id, "found", "Item reopened")}>
-                        <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reopen
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reopen
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setItemStatus(item.id, "lost", "Item reopened as Lost")}>
+                            Reopen as Lost
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setItemStatus(item.id, "found", "Item reopened as Found")}>
+                            Reopen as Found
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                     <Button variant="ghost" size="icon" onClick={() => deleteItem(item.id)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
@@ -271,89 +266,37 @@ export default function Dashboard() {
             <EmptyState text="You haven't claimed any items yet." />
           ) : myClaims.map((claim) => (
             <Card key={claim.id}>
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start">
+              <CardContent className="p-5">
+                <div className="flex justify-between items-start gap-3">
                   <div>
                     <p className="font-semibold">{claim.items?.title || "Item"}</p>
-                    <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{claim.message}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{claim.message}</p>
                   </div>
                   <Badge variant="secondary" className="capitalize">{claim.status}</Badge>
                 </div>
 
-                {claim.status === "pending" && claim.verification_question && !claim.verification_answer && !claim.meeting_requested && (
-                  <div className="mt-4 rounded-md bg-muted p-3">
-                    <p className="text-sm font-medium">Reporter's Question:</p>
-                    <p className="mt-1 text-sm">"{claim.verification_question}"</p>
-                    <div className="mt-3">
-                      <form onSubmit={(event) => {
-                        event.preventDefault();
-                        const answer = new FormData(event.currentTarget).get("answer") as string;
-                        if (!answer.trim()) return;
-                        updateClaim(
-                          claim.id,
-                          { verification_answer: answer },
-                          "Answer submitted",
-                        );
-                      }}>
-                        <textarea name="answer" placeholder="Your answer..." className="w-full rounded-md border bg-background p-2 text-sm" rows={2} required />
-                        <div className="mt-2 flex gap-2">
-                          <Button size="sm" type="submit">Submit Answer</Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            type="button"
-                            onClick={() => updateClaim(
-                              claim.id,
-                              { meeting_requested: true, verification_answer: null },
-                              "Meeting requested",
-                            )}
-                          >
-                            Request to Meet in Person instead
-                          </Button>
-                        </div>
-                      </form>
-                    </div>
+                {claim.status === "pending" && !claim.meeting_details && (
+                  <p className="mt-4 text-sm text-muted-foreground">Waiting on the finder to accept or decline.</p>
+                )}
+
+                {claim.status === "approved" && (
+                  <div className="mt-4 rounded-2xl bg-success/10 p-4">
+                    <p className="text-sm font-medium">Accepted</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {claim.meeting_details || "Meet in a public campus spot. Check alerts for any extra note."}
+                    </p>
                   </div>
                 )}
 
-                {claim.meeting_requested && !claim.meeting_details && (
-                  <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-sm text-amber-800">You requested to meet in person. Waiting for the reporter to suggest a time and place.</p>
-                  </div>
-                )}
-
-                {claim.meeting_requested && claim.meeting_details && (
-                  <div className="mt-4 rounded-md bg-muted p-3">
-                    <p className="text-sm font-medium">Meeting Details from Reporter:</p>
+                {claim.meeting_details && claim.status === "pending" && (
+                  <div className="mt-4 rounded-2xl bg-muted/80 p-4">
+                    <p className="text-sm font-medium">Meetup</p>
                     <p className="mt-1 whitespace-pre-wrap text-sm">{claim.meeting_details}</p>
                   </div>
                 )}
 
-                {claim.status === "rejected" && !claim.appeal_message && (
-                  <div className="mt-4">
-                    <p className="mb-2 text-sm text-destructive">Claim was rejected. You can appeal by providing more details.</p>
-                    <form onSubmit={(event) => {
-                      event.preventDefault();
-                      const appeal = new FormData(event.currentTarget).get("appeal") as string;
-                      if (!appeal.trim()) return;
-                      updateClaim(
-                        claim.id,
-                        { appeal_message: appeal, status: "pending" },
-                        "Appeal submitted",
-                      );
-                    }}>
-                      <textarea name="appeal" placeholder="Describe where you lost it, identifying marks, and anything only the owner would know." className="w-full rounded-md border bg-background p-2 text-sm" rows={3} required />
-                      <Button size="sm" type="submit" className="mt-2 w-full">Submit Appeal</Button>
-                    </form>
-                  </div>
-                )}
-
-                {claim.appeal_message && claim.status === "pending" && (
-                  <div className="mt-4 rounded-md bg-muted p-3">
-                    <p className="text-sm font-medium">Your Appeal:</p>
-                    <p className="mt-1 text-sm">"{claim.appeal_message}"</p>
-                    <p className="mt-2 text-xs text-muted-foreground">Waiting for reporter to re-review.</p>
-                  </div>
+                {claim.status === "rejected" && (
+                  <p className="mt-4 text-sm text-muted-foreground">Declined. You can look for another listing on the board.</p>
                 )}
               </CardContent>
             </Card>
@@ -365,123 +308,43 @@ export default function Dashboard() {
             <EmptyState text="No claims on your items yet." />
           ) : incomingClaims.map((claim) => (
             <Card key={claim.id}>
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start">
+              <CardContent className="p-5">
+                <div className="flex justify-between items-start gap-3">
                   <div>
-                    <p className="font-semibold">Claim on: {claim.items?.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">By: {claim.profiles?.full_name || "Anonymous"}</p>
+                    <p className="font-semibold">{claim.items?.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">From {claim.profiles?.full_name || "an SFIT member"}</p>
                   </div>
                   {claim.status !== "pending" && <Badge variant="secondary" className="capitalize">{claim.status}</Badge>}
                 </div>
 
-                <p className="mt-4 text-sm italic">"{claim.message}"</p>
+                <p className="mt-4 text-[15px] leading-relaxed">“{claim.message}”</p>
 
-                {claim.status === "pending" && !claim.verification_question && !claim.appeal_message && (
-                  <div className="mt-4">
-                    <form onSubmit={(event) => {
+                {claim.status === "pending" && (
+                  <form
+                    className="mt-5 space-y-3"
+                    onSubmit={(event) => {
                       event.preventDefault();
-                      const question = new FormData(event.currentTarget).get("question") as string;
-                      if (!question.trim()) return;
-                      updateClaim(
-                        claim.id,
-                        { verification_question: question },
-                        "Question sent",
-                      );
-                    }}>
-                      <p className="mb-1 text-sm font-medium">Verify Ownership (Optional)</p>
-                      <div className="flex gap-2">
-                        <input name="question" placeholder="e.g., What is the lock screen wallpaper?" className="flex-1 rounded-md border px-3 py-1 text-sm" required />
-                        <Button size="sm" type="submit" variant="secondary">Ask Question</Button>
-                      </div>
-                    </form>
-
-                    <div className="mt-4 flex gap-2 border-t pt-4">
-                      <Button size="sm" onClick={() => updateClaimStatus(claim.id, "approved", claim.item_id)}>Approve Claim</Button>
-                      <Button size="sm" variant="outline" onClick={() => updateClaimStatus(claim.id, "rejected", claim.item_id)}>Reject</Button>
-                    </div>
-                  </div>
-                )}
-
-                {claim.status === "pending" && claim.verification_question && !claim.verification_answer && !claim.meeting_requested && (
-                  <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3">
-                    <p className="text-sm text-blue-800">You asked Verification Question: "{claim.verification_question}"</p>
-                    <p className="mt-1 text-xs text-blue-600">Waiting for claimant to answer...</p>
-                  </div>
-                )}
-
-                {claim.status === "pending" && claim.verification_question && claim.verification_answer && (
-                  <div className="mt-4 rounded-md bg-muted p-3">
-                    <p className="text-sm font-medium">Verification Result</p>
-                    <p className="mt-2 text-sm text-muted-foreground">Your Q: {claim.verification_question}</p>
-                    <p className="mt-1 text-sm font-semibold">Their A: {claim.verification_answer}</p>
-                    <div className="mt-3 flex gap-2">
-                      <Button size="sm" onClick={() => updateClaimStatus(claim.id, "approved", claim.item_id)}>Approve</Button>
-                      <Button size="sm" variant="outline" onClick={() => updateClaimStatus(claim.id, "rejected", claim.item_id)}>Reject</Button>
-                    </div>
-                  </div>
-                )}
-
-                {claim.status === "pending" && claim.meeting_requested && !claim.meeting_details && (
-                  <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-sm font-medium text-amber-800">Claimant wants to meet in person</p>
-                    <form className="mt-2" onSubmit={(event) => {
-                      event.preventDefault();
-                      const details = new FormData(event.currentTarget).get("details") as string;
-                      if (!details.trim()) return;
-                      updateClaim(
-                        claim.id,
-                        { meeting_details: details },
-                        "Meeting details sent",
-                      );
-                    }}>
-                      <textarea name="details" placeholder="Where and when? e.g., Library cafe at 3 PM today." className="w-full rounded-md border bg-background p-2 text-sm" rows={2} required />
-                      <div className="mt-2 flex gap-2">
-                        <Button size="sm" type="submit">Send Details</Button>
-                        <Button size="sm" variant="outline" type="button" onClick={() => updateClaimStatus(claim.id, "rejected", claim.item_id)}>Reject Claim</Button>
-                      </div>
-                    </form>
-                  </div>
-                )}
-
-                {claim.meeting_requested && claim.meeting_details && claim.status === "pending" && (
-                  <div className="mt-4 rounded-md bg-muted p-3">
-                    <p className="text-sm font-medium">Meeting Setup</p>
-                    <p className="mt-1 text-sm">You suggested: {claim.meeting_details}</p>
-                    <div className="mt-3 flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => updateClaimStatus(
-                          claim.id,
-                          "approved",
-                          claim.item_id,
-                          "returned",
-                        )}
-                      >
-                        Mark as Returned
+                      const meetup = new FormData(event.currentTarget).get("meetup") as string;
+                      resolveIncoming(claim.id, claim.item_id, "approved", meetup);
+                    }}
+                  >
+                    <textarea
+                      name="meetup"
+                      placeholder="Optional meetup — Library entrance, 4 PM"
+                      className="w-full rounded-2xl border bg-card p-3 text-sm"
+                      rows={2}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" type="submit">Accept</Button>
+                      <Button size="sm" variant="outline" type="button" onClick={() => resolveIncoming(claim.id, claim.item_id, "rejected")}>
+                        Decline
                       </Button>
                     </div>
-                  </div>
+                  </form>
                 )}
 
-                {claim.status === "pending" && claim.appeal_message && (
-                  <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3">
-                    <p className="text-sm font-bold text-red-800">Appeal from Claimant</p>
-                    <p className="mt-2 text-sm">"{claim.appeal_message}"</p>
-                    <div className="mt-3 flex gap-2">
-                      <Button size="sm" onClick={() => updateClaimStatus(claim.id, "approved", claim.item_id)}>Approve Appeal</Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => updateClaim(
-                          claim.id,
-                          { status: "rejected" },
-                          "Appeal rejected",
-                        )}
-                      >
-                        Reject Again
-                      </Button>
-                    </div>
-                  </div>
+                {claim.status === "approved" && claim.meeting_details && (
+                  <p className="mt-4 text-sm text-muted-foreground">Meetup: {claim.meeting_details}</p>
                 )}
               </CardContent>
             </Card>
@@ -512,14 +375,14 @@ export default function Dashboard() {
 }
 
 function SkeletonList() {
-  return <>{Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-lg bg-muted" />)}</>;
+  return <>{Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-24 animate-pulse rounded-3xl bg-muted" />)}</>;
 }
 
 function EmptyState({ text, action }: { text: string; action?: React.ReactNode }) {
   return (
-    <div className="py-12 text-center">
-      <p className="text-muted-foreground">{text}</p>
-      {action && <div className="mt-4">{action}</div>}
+    <div className="rounded-3xl border border-dashed border-border/80 py-16 text-center">
+      <p className="text-[15px] text-muted-foreground">{text}</p>
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }
