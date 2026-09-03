@@ -5,7 +5,11 @@ export const SFIT_EMAIL_HINT = "Use your @student.sfit.ac.in or @sfit.ac.in Goog
 export function isAllowedSfitEmail(email: string | null | undefined) {
   if (!email) return false;
 
-  const domain = email.trim().toLowerCase().split("@")[1];
+  const trimmed = email.trim().toLowerCase();
+  const parts = trimmed.split("@");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
+
+  const domain = parts[1];
   return domain === "student.sfit.ac.in" || domain === "sfit.ac.in";
 }
 

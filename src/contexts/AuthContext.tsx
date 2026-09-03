@@ -45,9 +45,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
+    // Intercept OAuth error parameters (e.g. from Supabase database trigger rejections)
+    const checkOAuthErrors = () => {
+      const hash = window.location.hash;
+      const search = window.location.search;
+      let errorMsg = "";
+
+      if (hash) {
+        const params = new URLSearchParams(hash.substring(1));
+        const errorDesc = params.get("error_description") || params.get("error");
+        if (errorDesc) errorMsg = errorDesc;
+      }
+
+      if (!errorMsg && search) {
+        const params = new URLSearchParams(search);
+        const errorDesc = params.get("error_description") || params.get("error");
+        if (errorDesc) errorMsg = errorDesc;
+      }
+
+      if (errorMsg) {
+        let friendlyMsg = errorMsg.replace(/\+/g, " ");
+        if (
+          friendlyMsg.toLowerCase().includes("check_signup_email_domain") ||
+          friendlyMsg.toLowerCase().includes("sfit") ||
+          friendlyMsg.toLowerCase().includes("domain")
+        ) {
+          friendlyMsg = "Access denied. Only @student.sfit.ac.in or @sfit.ac.in accounts can sign in.";
+        }
+        toast.error(friendlyMsg);
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    };
+
+    checkOAuthErrors();
+
     const apply = (nextSession: Session | null) => {
       const allowed = rejectNonSfitSession(nextSession, rejectedEmail, (email) => {
         toast.error(sfitEmailError(email));
+        // Clear any access token from URL hash to prevent re-authentication on reload
+        if (window.location.hash.includes("access_token") || window.location.hash.includes("error")) {
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
         // signOut must not run inside the auth callback — it deadlocks supabase-js.
         window.setTimeout(() => {
           void supabase.auth.signOut();
@@ -128,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}/auth`,
         queryParams: {
           prompt: "select_account",
         },

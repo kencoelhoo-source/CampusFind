@@ -13,9 +13,10 @@ BEGIN
 END;
 $$;
 
--- Trigger for email domain restriction
-CREATE OR REPLACE TRIGGER check_email_domain_trigger
-  BEFORE INSERT ON auth.users
+-- Trigger for email domain restriction (covers both signup and email updates)
+DROP TRIGGER IF EXISTS check_email_domain_trigger ON auth.users;
+CREATE TRIGGER check_email_domain_trigger
+  BEFORE INSERT OR UPDATE OF email ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.check_signup_email_domain();
 
 -- Revoke public execution of signup checker
