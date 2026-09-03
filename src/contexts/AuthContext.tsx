@@ -169,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         redirectTo: `${window.location.origin}/auth`,
         queryParams: {
           prompt: "select_account",
+          hd: "student.sfit.ac.in",
         },
       },
     });
