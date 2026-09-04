@@ -22,6 +22,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import heroCampus from "@/assets/hero-campus.jpg";
+import heroMobile from "@/assets/hero-mobile.jpg";
 import ctaBgLight from "@/assets/0e34447f-6cc2-4ef0-8be0-4a23b0f02120.png";
 import ctaBgDark from "@/assets/4abc0fac-82b8-4587-8c55-bccbcba4bc9b.png";
 import { fetchHomeStats, fetchRecentItems } from "@/features/items/services/itemsApi";
@@ -110,11 +111,14 @@ export default function Index() {
       {/* ─── Hero ─── */}
       <section className="relative min-h-[100svh] overflow-hidden">
         <div className="absolute inset-0">
-          <img
-            src={heroCampus}
-            alt="A backpack and keys left on a campus bench"
-            className="h-full w-full object-cover object-[center_65%]"
-          />
+          <picture>
+            <source media="(max-width: 767px)" srcSet={heroMobile} />
+            <img
+              src={heroCampus}
+              alt="A backpack and keys left on a campus bench"
+              className="h-full w-full object-cover object-center md:object-[center_65%]"
+            />
+          </picture>
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/35 to-black/25" />
         </div>
 

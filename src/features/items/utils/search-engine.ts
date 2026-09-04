@@ -59,6 +59,10 @@ const SYNONYMS: Record<string, string[]> = {
   quadrangle: ["quad", "ground"],
   building: ["block", "wing", "floor", "classroom"],
   lab: ["computer", "workshop", "electronics", "physics", "chemistry"],
+
+  // Books, Academics & Stationery
+  book: ["books", "textbook", "novel", "notes", "notebook", "guide", "paper"],
+  books: ["book", "textbook", "notes", "novel", "stationery"],
 };
 
 /**
@@ -183,6 +187,7 @@ export function scoreItemMatch(
     description?: string | null;
     location?: string | null;
     category?: string | null;
+    poster_name?: string | null;
   },
   query: string
 ): MatchScoreResult {
@@ -200,12 +205,14 @@ export function scoreItemMatch(
   const descNorm = normalizeText(item.description || "");
   const locNorm = normalizeText(item.location || "");
   const catNorm = normalizeText(item.category || "");
+  const posterNorm = normalizeText(item.poster_name || "");
 
   const titleWords = titleNorm.split(/\s+/).filter(Boolean);
   const descWords = descNorm.split(/\s+/).filter(Boolean);
   const locWords = locNorm.split(/\s+/).filter(Boolean);
   const catWords = catNorm.split(/\s+/).filter(Boolean);
-  const allWords = [...titleWords, ...descWords, ...locWords, ...catWords];
+  const posterWords = posterNorm.split(/\s+/).filter(Boolean);
+  const allWords = [...titleWords, ...descWords, ...locWords, ...catWords, ...posterWords];
 
   let score = 0;
   const matchedTokens = new Set<string>();
@@ -221,6 +228,12 @@ export function scoreItemMatch(
   } else if (locNorm.includes(cleanQuery)) {
     score += 90;
     matchedDetails.push("Exact location phrase");
+  } else if (posterNorm && posterNorm.includes(cleanQuery)) {
+    score += 85;
+    matchedDetails.push("Exact poster phrase");
+  } else if (catNorm.includes(cleanQuery)) {
+    score += 70;
+    matchedDetails.push("Exact category phrase");
   }
 
   // Filter out pure stopwords if we have other tokens
@@ -253,6 +266,21 @@ export function scoreItemMatch(
       score += 30;
       tokenMatched = true;
       matchedDetails.push(`Category: "${token}"`);
+    } else if (catWords.some((w) => stemToken(w) === stemToken(token))) {
+      score += 26;
+      tokenMatched = true;
+      matchedDetails.push(`Category root: "${token}"`);
+    }
+
+    // Poster name match
+    if (posterNorm && posterNorm.includes(token)) {
+      score += 30;
+      tokenMatched = true;
+      matchedDetails.push(`Poster: "${token}"`);
+    } else if (posterWords.some((w) => stemToken(w) === stemToken(token))) {
+      score += 24;
+      tokenMatched = true;
+      matchedDetails.push(`Poster root: "${token}"`);
     }
 
     // Description match (details like brand, color, contents)
@@ -315,6 +343,7 @@ export function rankItemsByQuery<T extends {
   description?: string | null;
   location?: string | null;
   category?: string | null;
+  poster_name?: string | null;
   created_at?: string;
 }>(items: T[], query: string): T[] {
   const cleanQuery = query.trim();

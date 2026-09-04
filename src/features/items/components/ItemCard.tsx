@@ -4,6 +4,7 @@ import { MapPin, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { STATUS_COLORS } from "@/constants";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 import type { ItemStatus } from "../types";
 
 export interface ItemCardProps {
@@ -19,6 +20,13 @@ export interface ItemCardProps {
   user_id?: string;
   poster_name?: string;
 }
+
+const STATUS_DOT: Record<ItemStatus, string> = {
+  lost: "bg-rose-500",
+  found: "bg-emerald-400",
+  claimed: "bg-amber-400",
+  returned: "bg-sky-400",
+};
 
 export function ItemCard({
   id,
@@ -44,7 +52,7 @@ export function ItemCard({
             <img
               src={image_url}
               alt={title}
-              className="h-full w-full object-cover transition-transform duration-700 ease-apple group-hover:scale-[1.04]"
+              className="h-full w-full object-cover transition-transform duration-700 ease-apple group-hover:scale-[1.03]"
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-secondary">
@@ -53,9 +61,17 @@ export function ItemCard({
               </span>
             </div>
           )}
-          <div className="absolute left-3 top-3">
-            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold backdrop-blur-md ${statusStyle.bg} ${statusStyle.text}`}>
-              {statusStyle.label}
+          <div className="absolute left-3 top-3 z-10 pointer-events-none">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium shadow-sm backdrop-blur-md border tracking-wide",
+                image_url
+                  ? "bg-black/50 text-white border-white/15"
+                  : "bg-background/90 text-foreground border-border/80"
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", STATUS_DOT[status] || "bg-primary")} />
+              <span>{statusStyle?.label || status}</span>
             </span>
           </div>
         </div>

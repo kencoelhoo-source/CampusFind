@@ -107,6 +107,13 @@
 
   html {
     scroll-behavior: smooth;
+    scrollbar-gutter: stable;
+  }
+
+  /* Prevent Radix UI / react-remove-scroll from removing scrollbars and causing layout shift on desktop */
+  html body[data-scroll-locked] {
+    overflow: visible !important;
+    margin-right: 0px !important;
   }
 
   body {
@@ -163,11 +170,10 @@
   }
 
   .tile-hover {
-    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.35s ease;
   }
 
   .tile-hover:hover {
-    transform: translateY(-2px);
     box-shadow: var(--shadow-card-hover);
   }
 

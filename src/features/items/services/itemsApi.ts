@@ -79,33 +79,92 @@ export async function fetchBrowseItems(filters: ItemFilters) {
   }
 
   if (cleanKeyword && tokens.length > 0) {
-    // Cast a wide database net across title, description, location, and category
-    const conditions: string[] = [
-      `title.ilike.%${cleanKeyword}%`,
-      `description.ilike.%${cleanKeyword}%`,
-      `location.ilike.%${cleanKeyword}%`,
-    ];
+    const conditions: string[] = [];
+
+    // Sanitize string to prevent malformed PostgREST syntax (strip commas, parens, quotes)
+    const sanitizeForPostgrest = (str: string) => str.replace(/[,()"'%_\\]/g, " ").trim();
+
+    const cleanPhrase = sanitizeForPostgrest(cleanKeyword);
+    if (cleanPhrase) {
+      conditions.push(`title.ilike.%${cleanPhrase}%`);
+      conditions.push(`description.ilike.%${cleanPhrase}%`);
+      conditions.push(`location.ilike.%${cleanPhrase}%`);
+    }
+
+    const validCategoryEnums = new Set([
+      "electronics",
+      "clothing",
+      "documents",
+      "keys",
+      "wallet",
+      "jewelry",
+      "books",
+      "other",
+    ]);
+
+    const categoryAliases: Record<string, string> = {
+      book: "books",
+      books: "books",
+      electronic: "electronics",
+      electronics: "electronics",
+      laptop: "electronics",
+      phone: "electronics",
+      cloth: "clothing",
+      clothes: "clothing",
+      clothing: "clothing",
+      doc: "documents",
+      docs: "documents",
+      document: "documents",
+      documents: "documents",
+      id: "documents",
+      key: "keys",
+      keys: "keys",
+      wallet: "wallet",
+      wallets: "wallet",
+      purse: "wallet",
+      bag: "wallet",
+      jewelry: "jewelry",
+      jewel: "jewelry",
+      jewellery: "jewelry",
+      other: "other",
+    };
 
     tokens.slice(0, 6).forEach((tok) => {
-      conditions.push(`title.ilike.%${tok}%`);
-      conditions.push(`description.ilike.%${tok}%`);
-      conditions.push(`location.ilike.%${tok}%`);
-      conditions.push(`category.ilike.%${tok}%`);
+      const cleanTok = sanitizeForPostgrest(tok);
+      if (cleanTok) {
+        conditions.push(`title.ilike.%${cleanTok}%`);
+        conditions.push(`description.ilike.%${cleanTok}%`);
+        conditions.push(`location.ilike.%${cleanTok}%`);
+      }
+
+      const matchedCat = categoryAliases[tok.toLowerCase()];
+      if (matchedCat && validCategoryEnums.has(matchedCat)) {
+        conditions.push(`category.eq.${matchedCat}`);
+      }
     });
 
-    query = query.or(conditions.join(","));
+    if (conditions.length > 0) {
+      query = query.or(conditions.join(","));
+    }
   }
 
-  const { data, error } = await query.limit(100);
+  let rawItems: RawItem[] = [];
+  let dbQuerySucceeded = false;
 
-  if (error) {
-    throw error;
+  try {
+    const { data, error } = await query.limit(100);
+    if (!error && data) {
+      rawItems = data as RawItem[];
+      dbQuerySucceeded = true;
+    } else if (error) {
+      console.warn("Primary Supabase search query error, will use resilient fallback:", error.message);
+    }
+  } catch (err) {
+    console.warn("Primary Supabase search query threw, will use resilient fallback:", err);
   }
 
-  let rawItems = (data || []) as RawItem[];
-
-  // Fallback for typos or advanced semantic synonyms that exact DB ILIKE might miss
-  if (rawItems.length === 0 && cleanKeyword) {
+  // Fallback for synonyms, typos, or searches not matched by PostgREST ilike
+  if (cleanKeyword && (rawItems.length === 0 || !dbQuerySucceeded)) {
     let fallbackQuery = supabase
       .from("items")
       .select("id, title, description, category, location, status, date_occurred, created_at, user_id")
@@ -115,16 +174,25 @@ export async function fetchBrowseItems(filters: ItemFilters) {
     if (filters.category !== "all") fallbackQuery = fallbackQuery.eq("category", filters.category as never);
     if (filters.location !== "all") fallbackQuery = fallbackQuery.eq("location", filters.location);
 
-    const { data: fallbackData } = await fallbackQuery.limit(100);
-    if (fallbackData && fallbackData.length > 0) {
-      rawItems = rankItemsByQuery(fallbackData as RawItem[], cleanKeyword);
+    try {
+      const { data: fallbackData, error: fallbackError } = await fallbackQuery.limit(200);
+      if (!fallbackError && fallbackData && fallbackData.length > 0) {
+        rawItems = fallbackData as RawItem[];
+      }
+    } catch (err) {
+      console.warn("Fallback query error:", err);
     }
-  } else if (cleanKeyword && rawItems.length > 0) {
-    // Score and rank matched items by detail relevance
-    rawItems = rankItemsByQuery(rawItems, cleanKeyword);
   }
 
-  return hydrateItems(rawItems);
+  // Hydrate with images and poster details
+  let hydrated = await hydrateItems(rawItems);
+
+  // Score and rank matched items across all visible details (title, description, color, location, poster, category)
+  if (cleanKeyword && hydrated.length > 0) {
+    hydrated = rankItemsByQuery(hydrated, cleanKeyword);
+  }
+
+  return hydrated;
 }
 
 export async function fetchHomeStats() {
