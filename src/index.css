@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@property --mouse-angle {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 20deg;
+}
+
 @layer base {
   :root {
     --font-family-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -147,13 +153,15 @@
 
 @layer components {
   .glass-nav {
-    background: hsl(var(--background) / 0.78);
-    backdrop-filter: blur(22px) saturate(180%);
-    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 0.5px solid rgba(15, 15, 15, 0.14);
   }
 
   .dark .glass-nav {
-    background: hsl(var(--background) / 0.82);
+    background: rgba(14, 18, 24, 0.16);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
   }
 
   .tile {
@@ -227,6 +235,234 @@
     z-index: -1;
     background: linear-gradient(180deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.12) 45%, rgba(0, 0, 0, 0) 100%);
   }
+
+  .mobile-dock {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    .mobile-dock {
+      display: block;
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      z-index: 45;
+      transform: translateZ(0);
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.18);
+      -webkit-backdrop-filter: blur(4px);
+      backdrop-filter: blur(4px);
+      -webkit-tap-highlight-color: transparent;
+      contain: layout style;
+    }
+
+    .dark .mobile-dock {
+      background: rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  .dock-glass {
+    position: relative;
+    overflow: hidden;
+    background: transparent;
+    border: 0.5px solid hsl(var(--foreground) / 0.1);
+    box-shadow:
+      0 10px 28px hsl(var(--foreground) / 0.08),
+      inset 0 1px 0 hsl(0 0% 100% / 0.7),
+      inset 0 -1px 0 hsl(var(--foreground) / 0.06);
+  }
+
+  .dark .dock-glass {
+    border-color: hsl(0 0% 100% / 0.16);
+    box-shadow:
+      0 10px 28px rgba(0, 0, 0, 0.28),
+      inset 0 1px 0 hsl(0 0% 100% / 0.22),
+      inset 0 -1px 0 hsl(0 0% 100% / 0.06);
+  }
+
+  .dock-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: stretch;
+    padding: 4px;
+    border-radius: 28px;
+    touch-action: manipulation;
+  }
+
+  .dock-specular {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: 2;
+    background: linear-gradient(180deg, hsl(0 0% 100% / 0.42) 0%, hsl(0 0% 100% / 0.08) 34%, transparent 62%);
+  }
+
+  .dark .dock-specular {
+    background: linear-gradient(180deg, hsl(0 0% 100% / 0.16) 0%, hsl(0 0% 100% / 0.04) 36%, transparent 62%);
+  }
+
+  .dock-indicator {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc((100% - 8px) / 4);
+    border-radius: 24px;
+    z-index: 1;
+    pointer-events: none;
+    background: hsl(var(--card) / 0.88);
+    box-shadow:
+      0 1px 6px hsl(var(--foreground) / 0.08),
+      inset 0 1px 0 hsl(0 0% 100% / 0.9);
+    transform: translate3d(0, 0, 0);
+    transform-origin: left center;
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    backface-visibility: hidden;
+  }
+
+  .dark .dock-indicator {
+    background: hsl(0 0% 100% / 0.14);
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.28);
+  }
+
+  .dock-tab {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    height: 56px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    border-radius: 24px;
+    cursor: pointer;
+    text-decoration: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: none;
+  }
+
+  .dock-tab.active {
+    color: hsl(var(--foreground));
+  }
+
+  .dock-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dock-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2.15;
+  }
+
+  .dock-label {
+    display: block;
+    width: 100%;
+    height: 12px;
+    line-height: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .hero-glow {
+    --mouse-angle: 20deg;
+    position: relative;
+    display: inline-flex;
+    isolation: isolate;
+    border-radius: 999px;
+  }
+
+  .hero-glow::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: inherit;
+    pointer-events: none;
+    padding: 1.5px;
+    background: conic-gradient(
+      from var(--mouse-angle),
+      hsl(152 40% 70% / 0) 0deg,
+      hsl(152 48% 68% / 0.95) 48deg,
+      hsl(0 0% 100% / 0.95) 88deg,
+      hsl(211 90% 72% / 0.55) 122deg,
+      transparent 190deg,
+      transparent 360deg
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .hero-glow.is-lit::before {
+    opacity: 1;
+    transition-duration: 0.22s;
+  }
+
+  .hero-glow-btn {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.75rem;
+    padding: 0 1.35rem;
+    border-radius: 999px;
+    border: 1px solid hsl(0 0% 100% / 0.22);
+    background: hsl(0 0% 100% / 0.1);
+    color: hsl(0 0% 100%);
+    font-size: 15px;
+    font-weight: 500;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    transition: background-color 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.4s ease;
+  }
+
+  .hero-glow.is-lit .hero-glow-btn {
+    border-color: transparent;
+  }
+
+  .hero-glow-btn:hover {
+    background: hsl(0 0% 100% / 0.16);
+  }
+
+  .quiet-skeleton {
+    background: hsl(var(--muted) / 0.55);
+    animation: quiet-pulse 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes quiet-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.42;
+  }
 }
 
 @layer utilities {
@@ -256,6 +492,12 @@
 
   .page-enter {
     animation: page-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @media (max-width: 767px) {
+    .page-enter {
+      animation: none;
+    }
   }
 
   .auth-curtain {
@@ -296,18 +538,6 @@
   }
 }
 
-@keyframes jelly-wobble {
-  0% { transform: scale(1, 1); }
-  25% { transform: scale(1.08, 0.92); }
-  50% { transform: scale(0.94, 1.06); }
-  75% { transform: scale(1.03, 0.97); }
-  100% { transform: scale(1, 1); }
-}
-
-.animate-jelly-wobble {
-  animation: jelly-wobble 0.6s cubic-bezier(0.25, 1, 0.5, 1) both;
-}
-
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -317,11 +547,29 @@
   .auth-curtain,
   .animate-fade-in,
   .animate-count-up,
-  .animate-rise {
+  .animate-rise,
+  .animate-scale-in,
+  .animate-slide-in-right,
+  .quiet-skeleton {
     animation: none !important;
+  }
+
+  .dock-indicator {
+    transition: none !important;
+  }
+
+  .hero-glow::before,
+  .hero-glow::after {
+    animation: none !important;
+    opacity: 0 !important;
   }
 
   * {
     transition-duration: 0.01ms !important;
   }
+}
+
+html.theme-switching .mobile-dock,
+html.theme-switching .mobile-dock * {
+  transition: none !important;
 }

@@ -2,18 +2,21 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { ItemCard } from "@/features/items/components/ItemCard";
+import { ListRowSkeleton, PosterSkeleton } from "@/components/common/Skeletons";
 import { SearchFilters } from "@/features/items/components/SearchFilters";
 import { LayoutGrid, List, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { fetchBrowseItems } from "@/features/items/services/itemsApi";
 import { filtersFromSearchParams, filtersToSearchParams } from "@/features/items/utils/item-filters";
-import { cn } from "@/lib/utils";
 
 export default function Items() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchParamString = searchParams.toString();
   const initialFilters = filtersFromSearchParams(searchParams);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">(
+    () => (searchParams.get("view") === "list" ? "list" : "grid"),
+  );
 
   const [keyword, setKeyword] = useState(initialFilters.keyword);
   const [status, setStatus] = useState(initialFilters.status);
@@ -30,17 +33,18 @@ export default function Items() {
 
   useEffect(() => {
     const nextParams = filtersToSearchParams({ keyword, status, category, location });
+    if (viewMode === "list") nextParams.set("view", "list");
     const nextParamString = nextParams.toString();
 
     if (nextParamString !== searchParamString) {
       setSearchParams(nextParams, { replace: true });
     }
-  }, [keyword, status, category, location, searchParamString, setSearchParams]);
+  }, [keyword, status, category, location, viewMode, searchParamString, setSearchParams]);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["browse-items", { keyword, status, category, location }],
     queryFn: () => fetchBrowseItems({ keyword, status, category, location }),
-    placeholderData: [],
+    placeholderData: (previous) => previous,
   });
 
   return (
@@ -50,26 +54,14 @@ export default function Items() {
           <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Board</p>
           <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight">Browse items</h1>
         </div>
-        <div className="flex rounded-full bg-muted p-1">
-          <Button
-            variant={viewMode === "grid" ? "secondary" : "ghost"}
-            size="icon"
-            className={cn(viewMode === "grid" && "bg-card shadow-card")}
-            onClick={() => setViewMode("grid")}
-            aria-label="Grid view"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "secondary" : "ghost"}
-            size="icon"
-            className={cn(viewMode === "list" && "bg-card shadow-card")}
-            onClick={() => setViewMode("list")}
-            aria-label="List view"
-          >
-            <List className="h-4 w-4" />
-          </Button>
-        </div>
+        <SegmentedControl<"grid" | "list">
+          value={viewMode}
+          onChange={setViewMode}
+          options={[
+            { value: "grid", label: "Grid view", icon: <LayoutGrid className="h-4 w-4" /> },
+            { value: "list", label: "List view", icon: <List className="h-4 w-4" /> },
+          ]}
+        />
       </div>
 
       <div className="mt-8">
@@ -158,20 +150,10 @@ export default function Items() {
       )}
 
       {isLoading ? (
-        <div className={`mt-8 grid gap-5 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"}`}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex flex-col overflow-hidden rounded-3xl border border-border/40 bg-card p-3 shadow-card">
-              <div className="aspect-[4/3] w-full animate-pulse rounded-2xl bg-muted/60" />
-              <div className="space-y-2.5 p-3">
-                <div className="h-4 w-3/4 animate-pulse rounded-md bg-muted/80" />
-                <div className="h-3 w-1/2 animate-pulse rounded-md bg-muted/50" />
-                <div className="mt-3 flex gap-2 pt-1">
-                  <div className="h-5 w-14 animate-pulse rounded-full bg-muted/60" />
-                  <div className="h-5 w-20 animate-pulse rounded-full bg-muted/40" />
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className={`mt-8 grid gap-4 sm:gap-5 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 xl:grid-cols-2"}`}>
+          {Array.from({ length: 4 }).map((_, i) =>
+            viewMode === "grid" ? <PosterSkeleton key={i} /> : <ListRowSkeleton key={i} />,
+          )}
         </div>
       ) : items.length === 0 ? (
         <div className="mt-16 rounded-3xl border border-dashed border-border/60 bg-card/20 p-12 text-center backdrop-blur-sm sm:p-16">
@@ -201,10 +183,10 @@ export default function Items() {
           </div>
         </div>
       ) : (
-        <div className={`mt-8 grid gap-5 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 md:grid-cols-2"}`}>
+        <div className={`mt-8 grid gap-4 sm:gap-5 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 xl:grid-cols-2"}`}>
           {items.map((item, i) => (
-            <div key={item.id} className="animate-fade-in" style={{ animationDelay: `${i * 0.03}s` }}>
-              <ItemCard {...item} />
+            <div key={`${item.id}-${viewMode}`} className="animate-fade-in" style={{ animationDelay: `${Math.min(i, 8) * 0.03}s` }}>
+              <ItemCard {...item} layout={viewMode === "list" ? "list" : "poster"} />
             </div>
           ))}
         </div>

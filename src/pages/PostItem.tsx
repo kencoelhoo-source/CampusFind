@@ -100,7 +100,6 @@ export default function PostItem() {
           location: location || null,
           status: itemType as never,
           date_occurred: dateOccurred ? format(dateOccurred, "yyyy-MM-dd") : null,
-          contact_email: user.email ?? null,
         })
         .select("id")
         .single();
@@ -110,7 +109,8 @@ export default function PostItem() {
       const failedUploads: string[] = [];
 
       for (const file of images) {
-        const ext = file.name.split(".").pop();
+        const ext =
+          file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
         const path = `${user.id}/${item.id}/${crypto.randomUUID()}.${ext}`;
         const { error: uploadError } = await supabase.storage.from("item-images").upload(path, file);
         if (uploadError) {
@@ -204,7 +204,7 @@ export default function PostItem() {
                     {dateOccurred ? format(dateOccurred, "PPP") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto overflow-visible p-0" align="start">
                   <Calendar mode="single" selected={dateOccurred} onSelect={setDateOccurred} disabled={(date) => date > new Date()} initialFocus className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>

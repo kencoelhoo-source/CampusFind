@@ -99,9 +99,9 @@ export type Database = {
       items: {
         Row: {
           category: Database["public"]["Enums"]["item_category"]
-          contact_email: string | null
           created_at: string
           date_occurred: string | null
+          deleted_at: string | null
           description: string | null
           id: string
           location: string | null
@@ -112,9 +112,9 @@ export type Database = {
         }
         Insert: {
           category?: Database["public"]["Enums"]["item_category"]
-          contact_email?: string | null
           created_at?: string
           date_occurred?: string | null
+          deleted_at?: string | null
           description?: string | null
           id?: string
           location?: string | null
@@ -125,9 +125,9 @@ export type Database = {
         }
         Update: {
           category?: Database["public"]["Enums"]["item_category"]
-          contact_email?: string | null
           created_at?: string
           date_occurred?: string | null
+          deleted_at?: string | null
           description?: string | null
           id?: string
           location?: string | null
@@ -146,6 +146,7 @@ export type Database = {
           read: boolean
           related_claim_id: string | null
           related_item_id: string | null
+          sender_id: string | null
           title: string
           user_id: string
         }
@@ -156,6 +157,7 @@ export type Database = {
           read?: boolean
           related_claim_id?: string | null
           related_item_id?: string | null
+          sender_id?: string | null
           title: string
           user_id: string
         }
@@ -166,6 +168,7 @@ export type Database = {
           read?: boolean
           related_claim_id?: string | null
           related_item_id?: string | null
+          sender_id?: string | null
           title?: string
           user_id?: string
         }

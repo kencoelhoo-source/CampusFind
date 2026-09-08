@@ -21,7 +21,7 @@ export const FAQS = [
   },
   {
     q: "Can I delete a listing?",
-    a: "Yes. Dashboard → My items → delete. Photos are removed with the post.",
+    a: "Yes. Dashboard → Posted → delete. Photos are removed with the post.",
   },
   {
     q: "Is this the official SFIT lost-and-found desk?",

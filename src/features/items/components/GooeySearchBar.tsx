@@ -16,7 +16,9 @@ export function GooeySearchBar({
   const [isFocused, setIsFocused] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isPeeking, setIsPeeking] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches,
+  );
 
   const inputRef = useRef<HTMLInputElement>(null);
   const leaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -74,22 +76,56 @@ export function GooeySearchBar({
     }
   };
 
-  // Shared butter-smooth spring transition for width, position, and transform
-  const springTransition =
-    "width 820ms cubic-bezier(0.28, 1.18, 0.4, 1), left 820ms cubic-bezier(0.28, 1.18, 0.4, 1), transform 820ms cubic-bezier(0.28, 1.18, 0.4, 1)";
+  const ease = "780ms cubic-bezier(0.22, 1, 0.36, 1)";
+  const springTransition = `width ${ease}, left ${ease}`;
+  const dropletWidth = active ? 116 : 56;
+  const dropletLeft = active ? "calc(100% - 116px)" : "calc(100% - 56px)";
+  const capsuleWidth = active ? "calc(100% - 134px)" : "100%";
 
-  // Sizing tokens ensuring the satellite never clips outside the screen on mobile
-  const dropletWidth = active ? (isDesktop ? 116 : 56) : 56;
-  const dropletLeft = active
-    ? isDesktop
-      ? "calc(100% - 116px)"
-      : "calc(100% - 56px)"
-    : "calc(100% - 56px)";
-  const capsuleWidth = active
-    ? isDesktop
-      ? "calc(100% - 134px)"
-      : "calc(100% - 72px)"
-    : "100%";
+  if (!isDesktop) {
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          handleSubmit();
+        }}
+        className="relative z-20 w-full"
+      >
+        <div className="flex h-12 items-center rounded-full bg-white pl-3.5 pr-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.28)]">
+          <Search className="h-4 w-4 shrink-0 text-black/45" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Search"
+            className="h-full min-w-0 flex-1 bg-transparent px-2.5 text-[16px] font-medium text-black placeholder:text-black/40 focus:outline-none"
+          />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                inputRef.current?.focus();
+              }}
+              className="mr-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-black/50"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" strokeWidth={2.2} />
+            </button>
+          ) : null}
+          <button
+            type="submit"
+            aria-label="Search"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-white"
+          >
+            <ArrowRight className="h-4 w-4" strokeWidth={2.2} />
+          </button>
+        </div>
+      </form>
+    );
+  }
 
   return (
     <div
@@ -105,7 +141,7 @@ export function GooeySearchBar({
       >
         <defs>
           <filter id="gooey-merger" x="-40%" y="-40%" width="180%" height="180%" colorInterpolationFilters="sRGB">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="5.5" result="blur" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="4.5" result="blur" />
             <feColorMatrix
               in="blur"
               type="matrix"
@@ -130,16 +166,15 @@ export function GooeySearchBar({
           >
             {/* Main Big Drop (Seamless Capsule) */}
             <div
-              className="h-14 rounded-full bg-white will-change-transform"
+              className="h-14 rounded-full bg-white"
               style={{
                 width: capsuleWidth,
                 transition: springTransition,
               }}
             />
 
-            {/* Satellite Droplet (Pops out organically within viewport bounds) */}
             <div
-              className="absolute top-0 h-14 rounded-full bg-white will-change-transform"
+              className="absolute top-0 h-14 rounded-full bg-white"
               style={{
                 left: dropletLeft,
                 width: `${dropletWidth}px`,
@@ -157,7 +192,7 @@ export function GooeySearchBar({
               setIsPeeking(false);
               inputRef.current?.focus();
             }}
-            className="relative flex h-14 cursor-text items-center pl-4 sm:pl-5 pr-2 sm:pr-4 will-change-transform"
+            className="relative flex h-14 cursor-text items-center pl-4 sm:pl-5 pr-2 sm:pr-4"
             style={{
               width: capsuleWidth,
               transition: springTransition,
@@ -176,7 +211,7 @@ export function GooeySearchBar({
               onBlur={() => setIsFocused(false)}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
-              className="h-full w-full bg-transparent pl-2.5 sm:pl-3 pr-2 text-[16px] font-medium text-black placeholder:text-black/45 focus:outline-none"
+              className="h-full min-w-0 w-full bg-transparent pl-2.5 sm:pl-3 pr-2 text-[16px] font-medium text-black placeholder:text-black/45 focus:outline-none"
             />
             {query && (
               <button
@@ -194,9 +229,8 @@ export function GooeySearchBar({
             )}
           </div>
 
-          {/* Action Button inside Satellite Droplet */}
           <div
-            className="absolute top-0 h-14 will-change-transform"
+            className="absolute top-0 h-14"
             style={{
               left: dropletLeft,
               width: `${dropletWidth}px`,
@@ -207,16 +241,22 @@ export function GooeySearchBar({
               type="button"
               onClick={handleSubmit}
               aria-label="Search"
-              className="flex h-14 w-full items-center justify-center rounded-full font-semibold text-black transition-opacity hover:opacity-80 active:scale-[0.97] focus:outline-none"
+              className="flex h-14 w-full items-center justify-center gap-1.5 rounded-full font-semibold text-black focus:outline-none"
             >
-              {active ? (
-                <>
-                  <span className="hidden sm:inline text-[15px]">Search</span>
-                  <ArrowRight className="h-4 w-4 sm:ml-1.5 opacity-80" strokeWidth={2.2} />
-                </>
-              ) : (
-                <ArrowRight className="h-4 w-4 text-black/50" strokeWidth={2.2} />
-              )}
+              <span
+                className="overflow-hidden whitespace-nowrap text-[15px]"
+                style={{
+                  maxWidth: active ? 64 : 0,
+                  opacity: active ? 1 : 0,
+                  transition: `max-width ${ease}, opacity 280ms ease`,
+                }}
+              >
+                Search
+              </span>
+              <ArrowRight
+                className="h-4 w-4 shrink-0 opacity-70"
+                strokeWidth={2.2}
+              />
             </button>
           </div>
         </div>

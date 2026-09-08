@@ -34,7 +34,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    const root = document.documentElement;
+    root.classList.add("theme-switching");
+    setTheme((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      root.classList.toggle("dark", next === "dark");
+      root.style.colorScheme = next;
+      localStorage.setItem("theme", next);
+      return next;
+    });
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        root.classList.remove("theme-switching");
+      });
+    });
   };
 
   return (

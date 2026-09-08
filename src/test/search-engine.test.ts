@@ -66,4 +66,39 @@ describe("Campus Search Engine", () => {
     const results = rankItemsByQuery(sampleItems, "milton canteen");
     expect(results[0].id).toBe("1");
   });
+
+  it("accurately finds item by exact title 'Book', color 'Yellow', and poster 'Ken Coelho'", () => {
+    const items = [
+      ...sampleItems,
+      {
+        id: "5",
+        title: "Book",
+        description: "Yellow",
+        location: "Canteen",
+        category: "books",
+        poster_name: "Ken Coelho",
+        created_at: "2026-09-04T10:00:00Z",
+      },
+    ];
+
+    // Search for exact title "Book"
+    const bookResults = rankItemsByQuery(items, "Book");
+    expect(bookResults.length).toBeGreaterThan(0);
+    expect(bookResults[0].id).toBe("5");
+
+    // Search for exact color "Yellow"
+    const yellowResults = rankItemsByQuery(items, "Yellow");
+    expect(yellowResults.length).toBeGreaterThan(0);
+    expect(yellowResults[0].id).toBe("5");
+
+    // Search for poster "Ken Coelho"
+    const posterResults = rankItemsByQuery(items, "Ken Coelho");
+    expect(posterResults.length).toBeGreaterThan(0);
+    expect(posterResults[0].id).toBe("5");
+
+    // Search for combined query "Yellow Book Canteen"
+    const combinedResults = rankItemsByQuery(items, "Yellow Book Canteen");
+    expect(combinedResults.length).toBeGreaterThan(0);
+    expect(combinedResults[0].id).toBe("5");
+  });
 });

@@ -4,6 +4,9 @@ export interface DBItem {
   status: "lost" | "found" | "claimed" | "returned";
   created_at: string;
   user_id?: string;
+  image_url?: string | null;
+  location?: string | null;
+  category?: string | null;
 }
 
 export interface DBClaim {
@@ -27,6 +30,8 @@ export interface DBNotification {
   message: string;
   created_at: string;
   read: boolean;
+  related_item_id?: string | null;
+  related_claim_id?: string | null;
 }
 
 export interface DashboardData {

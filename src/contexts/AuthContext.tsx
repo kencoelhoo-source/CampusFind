@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import { createContext, useContext, useCallback, useEffect, useRef, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session, AuthError } from "@supabase/supabase-js";
 import { toast } from "sonner";
@@ -8,9 +8,8 @@ export interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signInWithGoogle: () => Promise<{ error: AuthError | null }>;
+  signInWithGoogleIdToken: (token: string, nonce: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -125,63 +124,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    if (!isAllowedSfitEmail(email)) {
-      return {
-        error: {
-          name: "AuthError",
-          message: sfitEmailError(email),
-          status: 403,
-        } as AuthError,
-      };
-    }
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    return { error };
-  };
-
-  const signIn = async (email: string, password: string) => {
-    if (!isAllowedSfitEmail(email)) {
-      return {
-        error: {
-          name: "AuthError",
-          message: sfitEmailError(email),
-          status: 403,
-        } as AuthError,
-      };
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
-  };
-
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth`,
         queryParams: {
           prompt: "select_account",
-          hd: "student.sfit.ac.in",
         },
       },
     });
     return { error };
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signInWithGoogleIdToken = useCallback(async (token: string, nonce: string) => {
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: "google",
+      token,
+      nonce,
+    });
+    return { error };
+  }, []);
+
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-  };
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signInWithGoogle, signInWithGoogleIdToken, signOut }}>
       {children}
     </AuthContext.Provider>
   );

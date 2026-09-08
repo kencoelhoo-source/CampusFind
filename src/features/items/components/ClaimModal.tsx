@@ -35,6 +35,10 @@ export function ClaimModal({
 
   const handleSubmit = async () => {
     if (!user) return;
+    if (user.id === itemOwnerId) {
+      toast.error("You cannot claim your own listing.");
+      return;
+    }
 
     const validationError = validateClaimMessage(message);
     if (validationError) {
@@ -46,15 +50,19 @@ export function ClaimModal({
     try {
       const trimmedMessage = message.trim();
 
-      const { error } = await supabase.from("claims").insert({
-        item_id: itemId,
-        user_id: user.id,
-        message: trimmedMessage,
-      });
+      const { data: claim, error } = await supabase
+        .from("claims")
+        .insert({
+          item_id: itemId,
+          user_id: user.id,
+          message: trimmedMessage,
+          status: "pending",
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
 
-      // Dispatch in-app notification to item owner
       if (itemOwnerId && itemOwnerId !== user.id) {
         try {
           await notifyUser({
@@ -64,6 +72,7 @@ export function ClaimModal({
               ? `A finder sent a message: "${trimmedMessage.slice(0, 120)}"`
               : `A student submitted a claim: "${trimmedMessage.slice(0, 120)}"`,
             relatedItemId: itemId,
+            relatedClaimId: claim?.id,
           });
         } catch (notifErr) {
           console.warn("Could not dispatch notification:", notifErr);

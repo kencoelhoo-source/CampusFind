@@ -1,13 +1,14 @@
 import { Suspense, lazy } from "react";
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { RouteSkeleton } from "@/components/common/Skeletons";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Navbar } from "@/components/layout/Navbar";
+import { MobileDock } from "@/components/layout/MobileDock";
 import { Footer } from "@/components/layout/Footer";
 import { AuthCurtain, PageTransition } from "@/components/common/PageTransition";
 
@@ -29,7 +30,6 @@ const App = () => (
     <TooltipProvider>
       <ThemeProvider>
         <AuthProvider>
-          <Toaster />
           <Sonner />
           <BrowserRouter>
             <AppShell />
@@ -47,8 +47,9 @@ function AppShell() {
     <>
       <AuthCurtain />
       <div className="flex min-h-screen flex-col">
-        <Navbar />
-        <main className={cn("page-shell", pathname !== "/" && pathname !== "/auth" && "pt-14")}>
+        {pathname !== "/auth" && <Navbar />}
+        {pathname !== "/auth" && <MobileDock />}
+        <main className={cn("page-shell", pathname !== "/" && pathname !== "/auth" && "pt-14", pathname !== "/auth" && "max-md:pb-[7.25rem]")}>
           <Suspense fallback={<RouteFallback />}>
             <PageTransition>
               <Routes>
@@ -73,11 +74,7 @@ function AppShell() {
 }
 
 function RouteFallback() {
-  return (
-    <div className="container py-16">
-      <div className="h-48 animate-pulse rounded-3xl bg-muted" />
-    </div>
-  );
+  return <RouteSkeleton />;
 }
 
 export default App;

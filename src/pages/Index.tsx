@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { GooeySearchBar } from "@/features/items/components/GooeySearchBar";
+import { GlowAction } from "@/components/common/GlowAction";
 import { ItemCard } from "@/features/items/components/ItemCard";
+import { PosterSkeleton } from "@/components/common/Skeletons";
 import {
   Search,
   ArrowRight,
@@ -122,23 +124,23 @@ export default function Index() {
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/35 to-black/25" />
         </div>
 
-        <div className="container relative z-10 flex min-h-[100svh] flex-col justify-end pb-16 pt-28 md:pb-24">
-          <p className="animate-fade-in text-[14px] font-medium uppercase tracking-[0.22em] text-white/70">
+        <div className="container relative z-10 flex min-h-[100svh] flex-col justify-end pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-20 md:pb-24 md:pt-28">
+          <p className="animate-fade-in text-[11px] font-medium uppercase tracking-[0.16em] text-white/70 sm:text-[13px] sm:tracking-[0.22em] md:text-[14px]">
             SFIT Lost & Found
           </p>
-          <h1 className="mt-5 max-w-3xl animate-fade-in font-display text-[2.7rem] font-semibold leading-[1.05] tracking-tight text-white md:text-[4.5rem]">
+          <h1 className="mt-3 max-w-3xl animate-fade-in font-display text-[1.9rem] font-semibold leading-[1.08] tracking-tight text-white min-[380px]:text-[2.25rem] sm:mt-4 sm:text-[2.7rem] md:mt-5 md:text-[4.5rem]">
             Left behind.
             <br />
             <span className="text-white/72">Brought back.</span>
           </h1>
           <p
-            className="mt-6 max-w-lg animate-fade-in text-[17px] leading-relaxed text-white/75 md:text-[19px]"
+            className="mt-3 hidden max-w-lg animate-fade-in text-[16px] leading-relaxed text-white/75 min-[400px]:block sm:mt-4 md:mt-6 md:text-[19px]"
             style={{ animationDelay: "0.08s" }}
           >
             The campus board for SFIT. Browse without an account. Sign in with college Google to post or claim.
           </p>
 
-          <div className="mt-10 animate-fade-in" style={{ animationDelay: "0.16s" }}>
+          <div className="mt-6 animate-fade-in sm:mt-8 md:mt-10" style={{ animationDelay: "0.16s" }}>
             <GooeySearchBar
               onSearch={(q) => {
                 if (q.trim()) {
@@ -151,47 +153,52 @@ export default function Index() {
             />
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-2.5 animate-fade-in" style={{ animationDelay: "0.24s" }}>
+          <div className="mt-3 grid grid-cols-2 gap-2 animate-fade-in sm:mt-6 md:hidden" style={{ animationDelay: "0.24s" }}>
             <Button
               variant="outline"
-              className="h-10 rounded-full border-white/25 bg-white/10 text-white backdrop-blur-md transition-all duration-300 hover:bg-white/18 hover:text-white"
+              className="h-10 rounded-full border-white/25 bg-white/10 px-3 text-[13px] text-white backdrop-blur-md"
               asChild
             >
-              <Link to={user ? "/post?type=lost" : "/auth"}>I lost something</Link>
+              <Link to={user ? "/post?type=lost" : "/auth"}>Lost</Link>
             </Button>
             <Button
               variant="outline"
-              className="h-10 rounded-full border-white/25 bg-white/10 text-white backdrop-blur-md transition-all duration-300 hover:bg-white/18 hover:text-white"
+              className="h-10 rounded-full border-white/25 bg-white/10 px-3 text-[13px] text-white backdrop-blur-md"
               asChild
             >
-              <Link to={user ? "/post?type=found" : "/auth"}>I found something</Link>
+              <Link to={user ? "/post?type=found" : "/auth"}>Found</Link>
             </Button>
+          </div>
+          <div className="mt-6 hidden animate-fade-in gap-3 md:flex" style={{ animationDelay: "0.24s" }}>
+            <GlowAction to={user ? "/post?type=lost" : "/auth"}>I lost something</GlowAction>
+            <GlowAction to={user ? "/post?type=found" : "/auth"}>I found something</GlowAction>
           </div>
         </div>
       </section>
 
-      {/* ─── Stats (Apple-style Specs Panel) ─── */}
-      <section className="py-20 md:py-28">
+      {/* ─── Stats ─── */}
+      <section className="py-8 md:py-28">
         <div className="container">
-          <div className="rounded-3xl border border-border/50 bg-card/40 p-6 backdrop-blur-sm sm:p-8 md:p-12">
-            <div className="grid grid-cols-1 divide-y divide-border/40 sm:grid-cols-3 sm:divide-y-0 sm:divide-x">
+          <div className="rounded-2xl border border-border/50 bg-card/40 px-2 py-3.5 backdrop-blur-sm sm:rounded-3xl sm:p-8 md:p-12">
+            <div className="grid grid-cols-3 divide-x divide-border/40">
               {[
-                { value: stats.total, label: "On the board", sub: "Active community reports" },
-                { value: stats.lost, label: "Still lost", sub: "Awaiting recovery on campus" },
-                { value: stats.found, label: "Waiting to return", sub: "Safely secured by finders" },
+                { value: stats.total, short: "Board", label: "On the board", sub: "Active community reports" },
+                { value: stats.lost, short: "Lost", label: "Still lost", sub: "Awaiting recovery on campus" },
+                { value: stats.found, short: "Found", label: "Waiting to return", sub: "Safely secured by finders" },
               ].map((stat, i) => (
                 <div
                   key={stat.label}
-                  className="flex flex-col items-center justify-center p-6 text-center animate-count-up"
+                  className="flex flex-col items-center justify-center px-2 py-1 text-center animate-count-up md:p-6"
                   style={{ animationDelay: `${i * 0.08}s` }}
                 >
-                  <span className="font-display text-5xl font-semibold tracking-tight text-foreground sm:text-6xl md:text-7xl">
+                  <span className="font-display text-[1.65rem] font-semibold tracking-tight text-foreground sm:text-5xl md:text-7xl">
                     {stat.value}
                   </span>
-                  <p className="mt-3 text-[15px] font-semibold text-foreground md:text-[16px]">
-                    {stat.label}
+                  <p className="mt-0.5 text-[11px] font-medium text-muted-foreground md:mt-3 md:text-[16px] md:font-semibold md:text-foreground">
+                    <span className="md:hidden">{stat.short}</span>
+                    <span className="hidden md:inline">{stat.label}</span>
                   </p>
-                  <p className="mt-1 text-[13px] text-muted-foreground">
+                  <p className="mt-1 hidden text-[13px] text-muted-foreground md:block">
                     {stat.sub}
                   </p>
                 </div>
@@ -339,7 +346,7 @@ export default function Index() {
         {isLoading ? (
           <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 md:mt-16 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-72 animate-pulse rounded-3xl bg-muted" />
+              <PosterSkeleton key={i} />
             ))}
           </div>
         ) : items.length === 0 ? (

@@ -1,8 +1,6 @@
 import { Link } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { MapPin, Calendar } from "lucide-react";
 import { format } from "date-fns";
-import { STATUS_COLORS } from "@/constants";
+import { ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import type { ItemStatus } from "../types";
@@ -19,13 +17,28 @@ export interface ItemCardProps {
   created_at: string;
   user_id?: string;
   poster_name?: string;
+  layout?: "poster" | "list";
 }
 
-const STATUS_DOT: Record<ItemStatus, string> = {
-  lost: "bg-rose-500",
-  found: "bg-emerald-400",
-  claimed: "bg-amber-400",
-  returned: "bg-sky-400",
+const STATUS_WORD: Record<ItemStatus, string> = {
+  lost: "Lost",
+  found: "Found",
+  claimed: "Claimed",
+  returned: "Returned",
+};
+
+const STATUS_TONE: Record<ItemStatus, string> = {
+  lost: "text-rose-300",
+  found: "text-emerald-300",
+  claimed: "text-amber-300",
+  returned: "text-sky-300",
+};
+
+const STATUS_TONE_LIST: Record<ItemStatus, string> = {
+  lost: "text-red-600 dark:text-red-500",
+  found: "text-emerald-600 dark:text-emerald-400",
+  claimed: "text-amber-700 dark:text-amber-400",
+  returned: "text-sky-700 dark:text-sky-400",
 };
 
 export function ItemCard({
@@ -40,66 +53,92 @@ export function ItemCard({
   created_at,
   user_id,
   poster_name,
+  layout = "poster",
 }: ItemCardProps) {
   const { user } = useAuth();
-  const statusStyle = STATUS_COLORS[status];
+  const dateLabel = format(new Date(date_occurred || created_at), "d MMM");
+  const who = poster_name ? (user?.id === user_id ? "You" : poster_name) : null;
+  const situation = location ? `${STATUS_WORD[status]} · ${location}` : STATUS_WORD[status];
+
+  if (layout === "list") {
+    return (
+      <Link to={`/items/${id}`} className="group block">
+        <article className="tile tile-hover flex overflow-hidden">
+          <div className="relative w-[6.75rem] shrink-0 self-stretch bg-muted sm:w-[8.5rem] md:w-[9.5rem]">
+            {image_url ? (
+              <img src={image_url} alt={title} className="absolute inset-0 h-full w-full object-cover object-center" />
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-br from-neutral-600 to-neutral-900" />
+            )}
+          </div>
+          <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-4">
+            <div className="min-w-0 flex-1">
+              <p className={cn("text-[12px] font-medium tracking-wide", STATUS_TONE_LIST[status])}>
+                {situation}
+              </p>
+              <h3 className="mt-1 truncate font-display text-[1.2rem] font-semibold leading-tight tracking-tight sm:text-[1.3rem]">
+                {title}
+              </h3>
+              {description && (
+                <p className="mt-1 line-clamp-1 text-[13px] leading-snug text-muted-foreground">{description}</p>
+              )}
+              <p className="mt-2 text-[12px] text-muted-foreground">
+                {[who, dateLabel].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+            <span
+              aria-hidden
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
+            >
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </div>
+        </article>
+      </Link>
+    );
+  }
 
   return (
     <Link to={`/items/${id}`} className="group block">
-      <Card className="tile tile-hover overflow-hidden">
-        <div className="relative aspect-[4/3] overflow-hidden bg-secondary">
-          {image_url ? (
-            <img
-              src={image_url}
-              alt={title}
-              className="h-full w-full object-cover transition-transform duration-700 ease-apple group-hover:scale-[1.03]"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center bg-secondary">
-              <span className="font-display text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {category}
-              </span>
-            </div>
-          )}
-          <div className="absolute left-3 top-3 z-10 pointer-events-none">
+      <article className="relative isolate aspect-[4/5] w-full overflow-hidden rounded-[1.75rem] ring-1 ring-black/[0.06] transition-[transform,box-shadow] duration-500 ease-apple dark:ring-white/[0.08] group-hover:-translate-y-0.5 group-hover:shadow-[0_18px_40px_-24px_rgba(0,0,0,0.55)] md:aspect-[3/4]">
+        {image_url ? (
+          <img
+            src={image_url}
+            alt={title}
+            className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-700 ease-apple group-hover:scale-[1.05]"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-neutral-700 to-neutral-900" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/10" />
+
+        <span className="absolute left-3.5 top-3.5 rounded-full bg-black/35 px-2.5 py-1 text-[11px] font-medium capitalize tracking-wide text-white/90 backdrop-blur-md transition-colors duration-300 group-hover:bg-black/50">
+          {category}
+        </span>
+
+        <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+          <p className={cn("text-[12px] font-medium tracking-wide", STATUS_TONE[status])}>{situation}</p>
+
+          <div className="mt-1.5 flex items-end justify-between gap-3">
+            <h3 className="min-w-0 flex-1 line-clamp-2 font-display text-[1.3rem] font-semibold leading-[1.15] tracking-tight text-white sm:text-[1.45rem]">
+              {title}
+            </h3>
             <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium shadow-sm backdrop-blur-md border tracking-wide",
-                image_url
-                  ? "bg-black/50 text-white border-white/15"
-                  : "bg-background/90 text-foreground border-border/80"
-              )}
+              aria-hidden
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black shadow-sm"
             >
-              <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", STATUS_DOT[status] || "bg-primary")} />
-              <span>{statusStyle?.label || status}</span>
+              <ArrowUpRight className="h-4 w-4" />
             </span>
           </div>
-        </div>
-        <CardContent className="p-4">
-          <h3 className="line-clamp-1 text-[15px] font-semibold leading-tight tracking-tight text-foreground">
-            {title}
-          </h3>
-          {poster_name && (
-            <p className="mt-1 text-[12px] text-muted-foreground">
-              Posted by {user?.id === user_id ? "you" : poster_name}
-            </p>
-          )}
+
           {description && (
-            <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">{description}</p>
+            <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-white/70">{description}</p>
           )}
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-            {location && (
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3 w-3" /> {location}
-              </span>
-            )}
-            <span className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {date_occurred ? format(new Date(date_occurred), "MMM d, yyyy") : format(new Date(created_at), "MMM d, yyyy")}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+          <p className="mt-3 text-[12px] text-white/50">
+            {[who, dateLabel].filter(Boolean).join(" · ")}
+          </p>
+        </div>
+      </article>
     </Link>
   );
 }

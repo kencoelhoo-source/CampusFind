@@ -1,6 +1,6 @@
 project_id = "qqrxhusiobedxequunzm"
 [functions.ai-matcher]
-enabled = true
+enabled = false
 verify_jwt = true
 import_map = "./functions/ai-matcher/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
