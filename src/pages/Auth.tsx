@@ -16,6 +16,28 @@ export default function Auth() {
   const useGis = Boolean(GOOGLE_CLIENT_ID);
 
   useEffect(() => {
+    // Dynamically match mobile system navigation and status bar to dark floor tone (#161412)
+    const metaThemeColor = document.querySelector("meta[name='theme-color']");
+    const originalTheme = metaThemeColor?.getAttribute("content");
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute("content", "#161412");
+    }
+
+    const prevBodyBg = document.body.style.backgroundColor;
+    const prevHtmlBg = document.documentElement.style.backgroundColor;
+    document.body.style.backgroundColor = "#161412";
+    document.documentElement.style.backgroundColor = "#161412";
+
+    return () => {
+      if (metaThemeColor && originalTheme) {
+        metaThemeColor.setAttribute("content", originalTheme);
+      }
+      document.body.style.backgroundColor = prevBodyBg;
+      document.documentElement.style.backgroundColor = prevHtmlBg;
+    };
+  }, []);
+
+  useEffect(() => {
     if (loading || user) return;
 
     let cancelled = false;
@@ -81,7 +103,7 @@ export default function Auth() {
   }
 
   return (
-    <div className="relative flex h-[100dvh] w-full flex-col justify-between overflow-hidden overscroll-none bg-[#1a1715]">
+    <div className="relative flex min-h-[100dvh] md:h-[100dvh] w-full flex-col justify-between md:overflow-hidden bg-[#161412]">
       {/* Desktop background */}
       <img
         src={sfitWallDesktop}
@@ -89,30 +111,30 @@ export default function Auth() {
         className="pointer-events-none absolute inset-0 hidden h-full w-full object-cover object-center md:block"
       />
 
-      {/* Mobile: Photorealistic architectural artwork with seamless tactile interactive hotspots */}
-      <div className="relative h-full w-full overflow-hidden bg-[#dcd7ce] md:hidden">
-        {/* The 9:16 canvas that locks image and hotspots together 1:1 across all mobile screens */}
+      {/* Mobile: Full-bleed architectural wall with native mobile pull-to-refresh */}
+      <div className="relative min-h-[100dvh] w-full overflow-hidden bg-[#161412] md:hidden">
+        {/* Full-bleed background image covering 100% of mobile screen */}
+        <img
+          src={sfitWallMobile}
+          alt="CampusFind Login"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center select-none"
+        />
+
+        {/* Accessible Screen-Reader text for SEO and assistive technologies */}
+        <div className="sr-only">
+          <h1>Sign in to CampusFind</h1>
+          <p>Use your official @student.sfit.ac.in or @sfit.ac.in Google account to report, search, and claim lost items.</p>
+        </div>
+
+        {/* 9:16 interactive hotspot canvas mapped 1:1 to the object-cover image bounds */}
         <div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none"
+          className="pointer-events-auto absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none"
           style={{
-            width: "max(100%, calc(100vh * 9 / 16))",
             height: "max(100%, calc(100vw * 16 / 9))",
+            width: "max(100%, calc(100vh * 9 / 16))",
             aspectRatio: "9/16",
           }}
         >
-          {/* Photorealistic 3D rendered wall artwork */}
-          <img
-            src={sfitWallMobile}
-            alt="CampusFind Login"
-            className="pointer-events-none h-full w-full object-cover select-none"
-          />
-
-          {/* Accessible Screen-Reader text for SEO and assistive technologies */}
-          <div className="sr-only">
-            <h1>Sign in to CampusFind</h1>
-            <p>Use your official @student.sfit.ac.in or @sfit.ac.in Google account to report, search, and claim lost items.</p>
-          </div>
-
           {/* Tactile Button Hotspot directly over the rendered 'Sign in with Google' button in the image */}
           <button
             type="button"
