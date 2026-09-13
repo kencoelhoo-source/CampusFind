@@ -49,7 +49,7 @@ function AppShell() {
       <div className="flex min-h-screen flex-col">
         {pathname !== "/auth" && <Navbar />}
         {pathname !== "/auth" && <MobileDock />}
-        <main className={cn("page-shell", pathname !== "/" && pathname !== "/auth" && "pt-14", pathname !== "/auth" && "max-md:pb-[7.25rem]")}>
+        <main className={cn("page-shell", pathname !== "/" && pathname !== "/auth" && "pt-14")}>
           <Suspense fallback={<RouteFallback />}>
             <PageTransition>
               <Routes>

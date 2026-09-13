@@ -27,6 +27,8 @@ import heroCampus from "@/assets/hero-campus.jpg";
 import heroMobile from "@/assets/hero-mobile.jpg";
 import ctaBgLight from "@/assets/0e34447f-6cc2-4ef0-8be0-4a23b0f02120.png";
 import ctaBgDark from "@/assets/4abc0fac-82b8-4587-8c55-bccbcba4bc9b.png";
+import ctaBgLightMobile from "@/assets/6e21cf92-d91b-4fd1-b357-b1cf6e45b408.png";
+import ctaBgDarkMobile from "@/assets/4bf80ec4-dde3-47a2-a02e-61d8c9a319f6.png";
 import { fetchHomeStats, fetchRecentItems } from "@/features/items/services/itemsApi";
 import { useAuth } from "@/contexts/AuthContext";
 import { CATEGORIES } from "@/constants";
@@ -359,7 +361,7 @@ export default function Index() {
               <Button asChild>
                 <Link to={user ? "/post" : "/auth"}>{user ? "Report an item" : "Sign in to post"}</Link>
               </Button>
-              <Button variant="outline" asChild>
+              <Button variant="secondary" className="border border-border/70" asChild>
                 <Link to="/items">Browse anyway</Link>
               </Button>
             </div>
@@ -472,48 +474,54 @@ export default function Index() {
       </div>
 
       {/* ─── CTA footer (Light/Dark SFIT Campus Illustration) ─── */}
-      <section className="relative overflow-hidden py-32 text-center md:py-44">
+      <section className="relative overflow-hidden pt-14 pb-14 text-center min-h-[80svh] min-[400px]:min-h-[85svh] flex flex-col justify-start sm:min-h-0 sm:py-32 md:py-44">
         <div className="absolute inset-0 z-0">
-          <img
-            src={ctaBgLight}
-            alt="SFIT campus illustration"
-            className="h-full w-full object-cover object-center dark:hidden"
-          />
-          <img
-            src={ctaBgDark}
-            alt="SFIT campus illustration"
-            className="hidden h-full w-full object-cover object-center dark:block"
-          />
+          <picture className="block h-full w-full dark:hidden">
+            <source media="(max-width: 767px)" srcSet={ctaBgLightMobile} />
+            <img
+              src={ctaBgLight}
+              alt="SFIT campus illustration"
+              className="h-full w-full object-cover object-bottom md:object-center"
+            />
+          </picture>
+          <picture className="hidden h-full w-full dark:block">
+            <source media="(max-width: 767px)" srcSet={ctaBgDarkMobile} />
+            <img
+              src={ctaBgDark}
+              alt="SFIT campus illustration"
+              className="h-full w-full object-cover object-bottom md:object-center"
+            />
+          </picture>
         </div>
 
         <div className="container relative z-10">
-          <p className="text-[14px] font-medium uppercase tracking-[0.24em] text-foreground/60 dark:text-white/60">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-foreground/70 dark:text-white/70 sm:text-[14px] sm:tracking-[0.24em]">
             SFIT campus
           </p>
-          <h2 className="mt-6 font-display text-[2.75rem] font-semibold leading-[1.04] tracking-tight text-foreground sm:text-5xl md:text-[4.5rem] lg:text-[5rem] dark:text-white">
+          <h2 className="mt-4 font-display text-[2.15rem] font-semibold leading-[1.08] tracking-tight text-foreground min-[375px]:text-[2.45rem] min-[420px]:text-[2.75rem] sm:mt-6 sm:text-5xl md:text-[4.5rem] lg:text-[5rem] dark:text-white">
             Built only for <span className="text-primary">SFIT.</span>
           </h2>
-          <p className="mx-auto mt-6 max-w-xl text-[18px] font-medium leading-relaxed text-foreground/75 sm:text-[20px] md:text-[22px] dark:text-white/80">
+          <p className="mx-auto mt-3.5 max-w-sm text-[15px] font-medium leading-relaxed text-foreground/75 min-[375px]:text-[16px] sm:mt-5 sm:max-w-xl sm:text-[20px] md:text-[22px] dark:text-white/80">
             Post, claim, and return on campus. College Google accounts only.
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5">
-            <span className="rounded-full border border-border/70 bg-white/80 px-4 py-1.5 text-[14px] font-medium text-foreground shadow-xs backdrop-blur-md dark:border-white/15 dark:bg-white/10 dark:text-white">
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2 sm:mt-8 sm:gap-2.5">
+            <span className="inline-flex items-center rounded-full border border-border/70 bg-white/85 px-3.5 py-1.5 text-[12.5px] font-medium text-foreground shadow-xs backdrop-blur-md dark:border-white/15 dark:bg-neutral-900/60 dark:text-white sm:px-4 sm:text-[14px]">
               @student.sfit.ac.in
             </span>
-            <span className="rounded-full border border-border/70 bg-white/80 px-4 py-1.5 text-[14px] font-medium text-foreground shadow-xs backdrop-blur-md dark:border-white/15 dark:bg-white/10 dark:text-white">
+            <span className="inline-flex items-center rounded-full border border-border/70 bg-white/85 px-3.5 py-1.5 text-[12.5px] font-medium text-foreground shadow-xs backdrop-blur-md dark:border-white/15 dark:bg-neutral-900/60 dark:text-white sm:px-4 sm:text-[14px]">
               @sfit.ac.in
             </span>
           </div>
 
-          <div className="mt-10 flex flex-wrap justify-center gap-3.5">
+          <div className="mt-7 flex flex-col items-center justify-center gap-3 min-[440px]:flex-row sm:mt-10 sm:gap-3.5">
             <Button
-              className="h-12 rounded-full bg-white px-7 text-[15px] font-medium text-slate-900 shadow-md transition-all duration-200 hover:bg-slate-100 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 sm:h-13 sm:text-[16px]"
+              className="h-11 w-full max-w-[220px] rounded-full bg-white px-7 text-[14.5px] font-medium text-slate-900 shadow-md transition-all duration-200 hover:bg-slate-100 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 min-[440px]:h-12 min-[440px]:w-auto sm:h-13 sm:text-[16px]"
               asChild
             >
-              <Link to={user ? "/dashboard" : "/auth"} className="inline-flex items-center gap-2.5">
+              <Link to={user ? "/dashboard" : "/auth"} className="inline-flex items-center justify-center gap-2.5">
                 {!user && (
-                  <svg className="h-4.5 w-4.5 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                  <svg className="h-4 w-4 shrink-0 sm:h-4.5 sm:w-4.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
@@ -525,10 +533,12 @@ export default function Index() {
             </Button>
             <Button
               variant="outline"
-              className="h-12 rounded-full border-border/80 bg-white/80 px-8 text-[15px] font-medium text-foreground backdrop-blur-md transition-all duration-200 hover:bg-white dark:border-white/25 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 sm:h-13 sm:text-[16px]"
+              className="h-11 w-full max-w-[220px] rounded-full border-border/80 bg-white/85 px-7 text-[14.5px] font-medium text-foreground backdrop-blur-md transition-all duration-200 hover:bg-white dark:border-white/25 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 min-[440px]:h-12 min-[440px]:w-auto sm:h-13 sm:text-[16px]"
               asChild
             >
-              <Link to="/items">Browse the board</Link>
+              <Link to="/items" className="inline-flex items-center justify-center">
+                Browse the board
+              </Link>
             </Button>
           </div>
         </div>

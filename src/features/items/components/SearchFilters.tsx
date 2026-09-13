@@ -1,9 +1,10 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, SlidersHorizontal, X } from "lucide-react";
-import { CATEGORIES, LOCATIONS } from "@/constants";
+import { Search, SlidersHorizontal } from "lucide-react";
+import { CATEGORIES, LOCATIONS, STATUS_STYLES, CATEGORY_STYLES } from "@/constants";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 export interface SearchFiltersProps {
   keyword: string;
@@ -29,14 +30,10 @@ export function SearchFilters({
   compact = false,
 }: SearchFiltersProps) {
   const [showFilters, setShowFilters] = useState(!compact);
-  const hasFilters = status !== "all" || category !== "all" || location !== "all";
 
-  const clearFilters = () => {
-    onStatusChange("all");
-    onCategoryChange("all");
-    onLocationChange("all");
-    onKeywordChange("");
-  };
+  const statusStyle = status !== "all" ? STATUS_STYLES[status] : null;
+  const categoryStyle = category !== "all" ? CATEGORY_STYLES[category] : null;
+  const locationActive = location !== "all";
 
   return (
     <div className="space-y-3">
@@ -58,9 +55,25 @@ export function SearchFilters({
       </div>
 
       {showFilters && (
-        <div className="flex flex-wrap gap-2 animate-fade-in">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 sm:flex sm:flex-wrap sm:items-center animate-fade-in">
           <Select value={status} onValueChange={onStatusChange}>
-            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger
+              className={cn(
+                "h-10 sm:h-11 w-full sm:w-[140px] px-2.5 sm:px-4 text-[12px] sm:text-[14px] transition-colors",
+                statusStyle
+                  ? cn(statusStyle.border, statusStyle.bg, statusStyle.text, "font-semibold shadow-sm")
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <SelectValue placeholder="Status">
+                {status === "all" ? (
+                  <>
+                    <span className="sm:hidden">Status</span>
+                    <span className="hidden sm:inline">All status</span>
+                  </>
+                ) : undefined}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All status</SelectItem>
               <SelectItem value="lost">Lost</SelectItem>
@@ -71,7 +84,23 @@ export function SearchFilters({
           </Select>
 
           <Select value={category} onValueChange={onCategoryChange}>
-            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectTrigger
+              className={cn(
+                "h-10 sm:h-11 w-full sm:w-[160px] px-2.5 sm:px-4 text-[12px] sm:text-[14px] transition-colors",
+                categoryStyle
+                  ? cn(categoryStyle.border, categoryStyle.bg, categoryStyle.text, "font-semibold shadow-sm")
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <SelectValue placeholder="Category">
+                {category === "all" ? (
+                  <>
+                    <span className="sm:hidden">Categories</span>
+                    <span className="hidden sm:inline">All categories</span>
+                  </>
+                ) : undefined}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All categories</SelectItem>
               {CATEGORIES.map((cat) => (
@@ -81,7 +110,23 @@ export function SearchFilters({
           </Select>
 
           <Select value={location} onValueChange={onLocationChange}>
-            <SelectTrigger className="w-[170px]"><SelectValue placeholder="Location" /></SelectTrigger>
+            <SelectTrigger
+              className={cn(
+                "h-10 sm:h-11 w-full sm:w-[170px] px-2.5 sm:px-4 text-[12px] sm:text-[14px] transition-colors",
+                locationActive
+                  ? "border-foreground/30 bg-secondary/80 text-foreground dark:border-white/20 dark:bg-white/[0.08] dark:text-foreground font-semibold shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <SelectValue placeholder="Location">
+                {location === "all" ? (
+                  <>
+                    <span className="sm:hidden">Locations</span>
+                    <span className="hidden sm:inline">All locations</span>
+                  </>
+                ) : undefined}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All locations</SelectItem>
               {LOCATIONS.map((loc) => (
@@ -89,12 +134,6 @@ export function SearchFilters({
               ))}
             </SelectContent>
           </Select>
-
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              <X className="mr-1 h-3 w-3" /> Clear
-            </Button>
-          )}
         </div>
       )}
     </div>

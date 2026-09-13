@@ -71,21 +71,21 @@ const TabsList = React.forwardRef<
     <TabsPrimitive.List
       ref={listRef}
       className={cn(
-        "relative isolate flex h-12 w-full items-stretch rounded-[1.25rem] bg-muted/80 p-1 text-muted-foreground",
+        "relative isolate flex h-11 sm:h-11 items-stretch rounded-full bg-secondary/80 dark:bg-white/[0.06] border border-border/40 dark:border-white/[0.08] p-1 text-muted-foreground backdrop-blur-xl",
         className,
       )}
       {...props}
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute left-0 top-0 z-0 rounded-[1rem] bg-card shadow-card"
+        className="pointer-events-none absolute left-0 top-0 z-0 rounded-full bg-background dark:bg-white/15 shadow-sm"
         style={{
           width: indicator.w,
           height: indicator.h,
           opacity: indicator.ready ? 1 : 0,
           transform: `translate3d(${indicator.x}px, ${indicator.y}px, 0)`,
           willChange: indicator.animate ? "transform" : "auto",
-          transition: indicator.animate ? "transform 400ms cubic-bezier(0.4, 0, 0.2, 1)" : "none",
+          transition: indicator.animate ? "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)" : "none",
         }}
       />
       {children}
@@ -101,7 +101,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "relative z-10 inline-flex h-full min-w-0 flex-1 items-center justify-center whitespace-nowrap rounded-[1rem] px-2 text-[13px] font-medium text-muted-foreground transition-colors duration-200 ease-apple data-[state=active]:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50",
+      "relative z-10 inline-flex h-full min-w-0 flex-1 items-center justify-center whitespace-nowrap rounded-full px-2.5 sm:px-4 text-[12.5px] sm:text-[13px] font-medium text-muted-foreground transition-colors duration-200 ease-apple data-[state=active]:text-foreground data-[state=active]:font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50",
       className,
     )}
     {...props}

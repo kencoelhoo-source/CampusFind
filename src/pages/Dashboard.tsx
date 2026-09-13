@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
-import { Check, Package, Trash2, RotateCcw } from "lucide-react";
+import { Check, Package, Trash2, RotateCcw, Inbox, Bell } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -280,14 +280,9 @@ export default function Dashboard() {
 
   return (
     <div className="container py-8 md:py-14">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Account</p>
-          <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight md:text-4xl">Dashboard</h1>
-        </div>
-        <Button asChild className="hidden sm:inline-flex">
-          <Link to="/post">Post an item</Link>
-        </Button>
+      <div>
+        <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Account</p>
+        <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight md:text-4xl">Dashboard</h1>
       </div>
 
       {isError ? (
@@ -310,25 +305,35 @@ export default function Dashboard() {
         className="mt-8"
       >
         <div className="sticky top-14 z-30 py-3">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="my-items" className="px-1 text-[12px] sm:px-3 sm:text-[13px]">
-              Posted
-              <span className="ml-1 tabular-nums text-[11px] opacity-60">{myItems.length}</span>
-            </TabsTrigger>
-            <TabsTrigger value="my-claims" className="px-1 text-[12px] sm:px-3 sm:text-[13px]">
-              Claims
-              <span className="ml-1 tabular-nums text-[11px] opacity-60">{myClaims.length}</span>
-            </TabsTrigger>
-            <TabsTrigger value="incoming" className="px-1 text-[12px] sm:px-3 sm:text-[13px]">
-              Inbox
-              {pendingInbox > 0 && (
-                <span className="ml-1 tabular-nums text-[11px] text-foreground">{pendingInbox}</span>
+          <TabsList className="grid w-full grid-cols-4 sm:inline-flex sm:w-auto sm:min-w-[440px]">
+            <TabsTrigger value="my-items" className="px-2 text-[12px] sm:px-4 sm:text-[13px]">
+              <span>Posted</span>
+              {myItems.length > 0 && (
+                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground/10 px-1 text-[10.5px] font-semibold tabular-nums text-foreground dark:bg-white/20 dark:text-white">
+                  {myItems.length}
+                </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="notifications" className="px-1 text-[12px] sm:px-3 sm:text-[13px]">
-              Alerts
+            <TabsTrigger value="my-claims" className="px-2 text-[12px] sm:px-4 sm:text-[13px]">
+              <span>Claims</span>
+              {myClaims.length > 0 && (
+                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground/10 px-1 text-[10.5px] font-semibold tabular-nums text-foreground dark:bg-white/20 dark:text-white">
+                  {myClaims.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="incoming" className="px-2 text-[12px] sm:px-4 sm:text-[13px]">
+              <span>Inbox</span>
+              {pendingInbox > 0 && (
+                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary/20 px-1 text-[10.5px] font-semibold tabular-nums text-primary dark:bg-primary/30">
+                  {pendingInbox}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="px-2 text-[12px] sm:px-4 sm:text-[13px]">
+              <span>Alerts</span>
               {unreadCount > 0 && (
-                <span className="ml-1 h-1.5 w-1.5 rounded-full bg-destructive" />
+                <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-destructive" />
               )}
             </TabsTrigger>
           </TabsList>
@@ -339,6 +344,7 @@ export default function Dashboard() {
             <SkeletonList />
           ) : myItems.length === 0 ? (
             <EmptyState
+              icon={<Package className="h-6 w-6 opacity-75" strokeWidth={1.75} />}
               title="Nothing posted yet"
               text="Report something lost or found. It shows up on the board and here."
               action={
@@ -353,8 +359,8 @@ export default function Dashboard() {
                 item.status === "lost" ? (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-9 w-full md:w-auto"
+                    variant="secondary"
+                    className="h-9 w-full md:w-auto border border-border/70"
                     onClick={() => setItemStatus(item.id, "returned", "Marked as resolved")}
                   >
                     <Check className="h-3.5 w-3.5" />
@@ -363,8 +369,8 @@ export default function Dashboard() {
                 ) : item.status === "found" || item.status === "claimed" ? (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-9 w-full md:w-auto"
+                    variant="secondary"
+                    className="h-9 w-full md:w-auto border border-border/70"
                     onClick={() => setItemStatus(item.id, "returned", "Marked as returned")}
                   >
                     <Check className="h-3.5 w-3.5" />
@@ -373,7 +379,7 @@ export default function Dashboard() {
                 ) : item.status === "returned" ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button size="sm" variant="outline" className="h-9 w-full md:w-auto">
+                      <Button size="sm" variant="secondary" className="h-9 w-full md:w-auto border border-border/70">
                         <RotateCcw className="h-3.5 w-3.5" />
                         Reopen
                       </Button>
@@ -447,10 +453,11 @@ export default function Dashboard() {
             <SkeletonList />
           ) : myClaims.length === 0 ? (
             <EmptyState
+              icon={<Inbox className="h-6 w-6 opacity-75" strokeWidth={1.75} />}
               title="No claims yet"
               text="When you claim something on the board, it appears here."
               action={
-                <Button variant="outline" asChild>
+                <Button asChild>
                   <Link to="/items">Browse the board</Link>
                 </Button>
               }
@@ -494,7 +501,11 @@ export default function Dashboard() {
           {isLoading ? (
             <SkeletonList />
           ) : incomingClaims.length === 0 ? (
-            <EmptyState title="Inbox is empty" text="When someone claims one of your listings, you’ll see it here." />
+            <EmptyState
+              icon={<Inbox className="h-6 w-6 opacity-75" strokeWidth={1.75} />}
+              title="Inbox is empty"
+              text="When someone claims one of your listings, you’ll see it here."
+            />
           ) : (
             incomingClaims.map((claim) => (
               <article key={claim.id} className="tile p-4 sm:p-5">
@@ -539,8 +550,8 @@ export default function Dashboard() {
                       </Button>
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="h-10"
+                        variant="secondary"
+                        className="h-10 border border-border/70"
                         type="button"
                         onClick={() => resolveIncoming(claim.id, claim.item_id, "rejected")}
                       >
@@ -562,7 +573,11 @@ export default function Dashboard() {
           {isLoading ? (
             <SkeletonList />
           ) : notifications.length === 0 ? (
-            <EmptyState title="No alerts" text="You’ll get a note here when something happens on your listings." />
+            <EmptyState
+              icon={<Bell className="h-6 w-6 opacity-75" strokeWidth={1.75} />}
+              title="No alerts"
+              text="You’ll get a note here when something happens on your listings."
+            />
           ) : (
             notifications.map((notification) => {
               const itemHref = notification.related_item_id ? `/items/${notification.related_item_id}` : null;
@@ -607,12 +622,6 @@ export default function Dashboard() {
       </Tabs>
       )}
 
-      <div className="mt-8 sm:hidden">
-        <Button asChild className="h-12 w-full">
-          <Link to="/post">Post an item</Link>
-        </Button>
-      </div>
-
       <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && !deleting && setPendingDelete(null)}>
         <AlertDialogContent className="menu-surface max-w-[22rem] rounded-[1.75rem] border-border/60 p-6 sm:rounded-[1.75rem]">
           <AlertDialogHeader>
@@ -652,11 +661,26 @@ function SkeletonList() {
   );
 }
 
-function EmptyState({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
+function EmptyState({
+  icon,
+  title,
+  text,
+  action,
+}: {
+  icon?: ReactNode;
+  title: string;
+  text: string;
+  action?: ReactNode;
+}) {
   return (
-    <div className="tile px-6 py-14 text-center">
-      <p className="font-display text-xl font-semibold tracking-tight">{title}</p>
-      <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-muted-foreground">{text}</p>
+    <div className="tile px-6 py-12 sm:py-16 text-center">
+      {icon && (
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-muted-foreground dark:bg-white/[0.08] dark:text-white/80">
+          {icon}
+        </div>
+      )}
+      <p className="font-display text-xl sm:text-2xl font-semibold tracking-tight text-foreground">{title}</p>
+      <p className="mx-auto mt-2 max-w-sm text-[14.5px] sm:text-[15px] leading-relaxed text-muted-foreground">{text}</p>
       {action && <div className="mt-6">{action}</div>}
     </div>
   );

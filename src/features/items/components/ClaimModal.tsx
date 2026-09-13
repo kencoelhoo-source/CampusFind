@@ -126,7 +126,7 @@ export function ClaimModal({
           <p className="text-xs text-muted-foreground">{message.length}/500 characters</p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="secondary" className="border border-border/70" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={loading || !message.trim()}>
             {loading ? "Sending…" : isLostItem ? "Send message" : "Send claim"}
           </Button>
