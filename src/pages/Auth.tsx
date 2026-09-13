@@ -37,6 +37,39 @@ export default function Auth() {
     };
   }, []);
 
+  // Auto-reset connecting state if user presses back, cancels account picker, switches tabs, or restores from bfcache
+  useEffect(() => {
+    const handleReset = () => {
+      setConnecting(false);
+    };
+
+    window.addEventListener("pageshow", handleReset);
+    window.addEventListener("focus", handleReset);
+    window.addEventListener("popstate", handleReset);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        setTimeout(handleReset, 350);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("pageshow", handleReset);
+      window.removeEventListener("focus", handleReset);
+      window.removeEventListener("popstate", handleReset);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
+
+  // Failsafe timeout: never allow connecting spinner to hang for more than 4.5 seconds
+  useEffect(() => {
+    if (!connecting) return;
+    const timer = window.setTimeout(() => {
+      setConnecting(false);
+    }, 4500);
+    return () => window.clearTimeout(timer);
+  }, [connecting]);
+
   useEffect(() => {
     if (loading || user) return;
 
