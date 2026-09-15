@@ -1,8 +1,8 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session, AuthError } from "@supabase/supabase-js";
-import { toast } from "sonner";
-import { isAllowedSfitEmail, sfitEmailError } from "@/lib/email";
+import { toast } from "@/components/ui/sonner";
+import { getEmailLockCache, isAllowedSfitEmail, sfitEmailError, setEmailLockCache } from "@/lib/email";
 
 export interface AuthContextType {
   user: User | null;
@@ -65,11 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (errorMsg) {
         let friendlyMsg = errorMsg.replace(/\+/g, " ");
         if (
+          friendlyMsg.toLowerCase().includes("database error saving new user") ||
           friendlyMsg.toLowerCase().includes("check_signup_email_domain") ||
           friendlyMsg.toLowerCase().includes("sfit") ||
           friendlyMsg.toLowerCase().includes("domain")
         ) {
-          friendlyMsg = "Access denied. Only @student.sfit.ac.in or @sfit.ac.in accounts can sign in.";
+          friendlyMsg = "Only @student.sfit.ac.in or @sfit.ac.in accounts are allowed.";
         }
         toast.error(friendlyMsg);
         window.history.replaceState(null, "", window.location.pathname);
@@ -78,9 +79,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     checkOAuthErrors();
 
+    const loadEmailLock = async () => {
+      const { data, error } = await supabase.rpc("get_sfit_email_lock");
+      if (!error) setEmailLockCache(Boolean(data));
+    };
+
     const apply = (nextSession: Session | null) => {
       const allowed = rejectNonSfitSession(nextSession, rejectedEmail, (email) => {
-        toast.error(sfitEmailError(email));
+        toast.error(
+          getEmailLockCache()
+            ? "Sign-in is limited to SFIT accounts again. You were signed out."
+            : sfitEmailError(email),
+        );
         // Clear any access token from URL hash to prevent re-authentication on reload
         if (window.location.hash.includes("access_token") || window.location.hash.includes("error")) {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -102,8 +112,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       apply(nextSession);
     });
 
-    void supabase.auth
-      .getSession()
+    const lockChannel = supabase
+      .channel("app-settings-email-lock")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "app_settings" },
+        (payload) => {
+          const locked = Boolean((payload.new as { sfit_email_lock?: boolean } | null)?.sfit_email_lock);
+          setEmailLockCache(locked);
+          void supabase.auth.getSession().then(({ data }) => apply(data.session));
+        },
+      )
+      .subscribe();
+
+    void loadEmailLock()
+      .catch(() => undefined)
+      .then(() => supabase.auth.getSession())
       .then(({ data }) => apply(data.session))
       .catch(() => {
         if (!cancelled) {
@@ -121,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       window.clearTimeout(failSafe);
       subscription.unsubscribe();
+      void supabase.removeChannel(lockChannel);
     };
   }, []);
 

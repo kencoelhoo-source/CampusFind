@@ -24,8 +24,8 @@ export default function Privacy() {
         <ul>
           <li>Your Google display name and SFIT email when you sign in. Email is used for the account, not shown on listings.</li>
           <li>Listings you create: title, description, category, campus location, date, and photos.</li>
-          <li>Claim messages and optional meetup notes between you and the other person on a listing.</li>
-          <li>In-app notifications about claims on your listings.</li>
+          <li>Claim messages and optional public pickup notes between you and the other person on a listing.</li>
+          <li>In-app notifications about claims on your listings, and email copies of those alerts when mail is configured.</li>
         </ul>
       </section>
 
@@ -35,7 +35,7 @@ export default function Privacy() {
           The board is public. Anyone with the link can see listing titles, descriptions, locations, dates, photos, and the poster’s display name. They cannot see your email.
         </p>
         <p>
-          Claim text and meetup notes stay between the poster and the claimant. Do not put phone numbers, ID scans, or home addresses in a listing or claim if you do not want that stored.
+          Claim text and pickup notes stay between the poster and the claimant. Do not put phone numbers, ID scans, or home addresses in a listing or claim if you do not want that stored. Use a public campus place (library, canteen, security) — never a private spot.
         </p>
       </section>
 

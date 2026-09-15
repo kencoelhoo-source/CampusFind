@@ -8,7 +8,7 @@ export default function FAQ() {
       <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Help</p>
       <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight md:text-5xl">Questions, answered.</h1>
       <p className="mt-4 text-[16px] leading-relaxed text-muted-foreground">
-        Report, describe, meet. The same pattern campus lost-and-found desks use — without a long ticket thread.
+        Report, describe, hand it over in public. The same pattern campus lost-and-found desks use — without a long ticket thread.
       </p>
 
       <Accordion type="single" collapsible className="mt-10">

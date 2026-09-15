@@ -1,5 +1,3 @@
-import type { RawItem, ItemWithImage } from "../types";
-
 /**
  * Common stopwords to deprioritize in search query matching
  */
@@ -186,6 +184,7 @@ export function scoreItemMatch(
     title: string;
     description?: string | null;
     location?: string | null;
+    held_at?: string | null;
     category?: string | null;
     poster_name?: string | null;
   },
@@ -203,7 +202,7 @@ export function scoreItemMatch(
 
   const titleNorm = normalizeText(item.title);
   const descNorm = normalizeText(item.description || "");
-  const locNorm = normalizeText(item.location || "");
+  const locNorm = normalizeText([item.location, item.held_at].filter(Boolean).join(" "));
   const catNorm = normalizeText(item.category || "");
   const posterNorm = normalizeText(item.poster_name || "");
 
@@ -342,6 +341,7 @@ export function rankItemsByQuery<T extends {
   title: string;
   description?: string | null;
   location?: string | null;
+  held_at?: string | null;
   category?: string | null;
   poster_name?: string | null;
   created_at?: string;

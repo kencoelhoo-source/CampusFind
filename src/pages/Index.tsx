@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { GooeySearchBar } from "@/features/items/components/GooeySearchBar";
@@ -8,7 +9,6 @@ import { GlowAction } from "@/components/common/GlowAction";
 import { ItemCard } from "@/features/items/components/ItemCard";
 import { PosterSkeleton } from "@/components/common/Skeletons";
 import {
-  Search,
   ArrowRight,
   ArrowUpRight,
   Laptop,
@@ -25,14 +25,15 @@ import {
 } from "lucide-react";
 import heroCampus from "@/assets/hero-campus.jpg";
 import heroMobile from "@/assets/hero-mobile.jpg";
-import ctaBgLight from "@/assets/0e34447f-6cc2-4ef0-8be0-4a23b0f02120.png";
+import ctaBgLight from "@/assets/d583a0b4-1ce2-4978-9e7f-a029494d6058.png";
 import ctaBgDark from "@/assets/4abc0fac-82b8-4587-8c55-bccbcba4bc9b.png";
-import ctaBgLightMobile from "@/assets/6e21cf92-d91b-4fd1-b357-b1cf6e45b408.png";
-import ctaBgDarkMobile from "@/assets/4bf80ec4-dde3-47a2-a02e-61d8c9a319f6.png";
+import ctaBgLightMobile from "@/assets/a7a160a9-01a1-4cfc-b8c6-b5b244c8c641.png";
+import ctaBgDarkMobile from "@/assets/d51212a2-1fa5-4bab-9fc8-ebd4cc54417f.png";
 import { fetchHomeStats, fetchRecentItems } from "@/features/items/services/itemsApi";
 import { useAuth } from "@/contexts/AuthContext";
 import { CATEGORIES } from "@/constants";
 import { FAQS } from "@/data/faqs";
+import { Footer } from "@/components/layout/Footer";
 
 const categoryIcons = {
   Laptop,
@@ -56,31 +57,43 @@ const categoryDetails: Record<string, { desc: string; color: string }> = {
   other: { desc: "Bottles, umbrellas, miscellaneous", color: "text-teal-500 dark:text-teal-400" },
 };
 
+const stepAccent = {
+  yellow: "text-[#E8B400] dark:text-[#FFD60A]",
+  green: "text-[#34C759] dark:text-[#30D158]",
+  blue: "text-[#007AFF] dark:text-[#64D2FF]",
+} as const;
+
+const trustAccent = {
+  pink: "text-[#FF375F] dark:text-[#FF6482]",
+  green: "text-[#34C759] dark:text-[#30D158]",
+  purple: "text-[#AF52DE] dark:text-[#BF5AF2]",
+} as const;
+
 const steps = [
   {
     title: "Post it",
-    colorClass: "text-[#FACC15] dark:text-[#FEF08A]",
+    colorClass: stepAccent.yellow,
     body: (
       <>
-        <span className="text-[#FACC15] dark:text-[#FEF08A]">Lost or found</span>, same form. Title, place, <span className="text-[#FACC15] dark:text-[#FEF08A]">a photo</span> if you have one.
+        <span className={stepAccent.yellow}>Lost or found</span>, same form. Title, place, <span className={stepAccent.yellow}>a photo</span> if you have one.
       </>
     ),
   },
   {
     title: "Describe it",
-    colorClass: "text-[#4ADE80] dark:text-[#A7F3D0]",
+    colorClass: stepAccent.green,
     body: (
       <>
-        The owner sends <span className="text-[#4ADE80] dark:text-[#A7F3D0]">one note</span>: a mark, a color, what’s inside. That’s <span className="text-[#4ADE80] dark:text-[#A7F3D0]">the claim</span>.
+        The owner sends <span className={stepAccent.green}>one note</span>: a mark, a color, what’s inside. That’s <span className={stepAccent.green}>the claim</span>.
       </>
     ),
   },
   {
     title: "Hand it back",
-    colorClass: "text-[#0EA5E9] dark:text-[#93C5FD]",
+    colorClass: stepAccent.blue,
     body: (
       <>
-        Confirm <span className="text-[#0EA5E9] dark:text-[#93C5FD]">proof of ownership</span>, coordinate a safe handover on campus, and mark it <span className="text-[#0EA5E9] dark:text-[#93C5FD]">resolved</span>.
+        Confirm <span className={stepAccent.blue}>proof of ownership</span>, coordinate a safe handover on campus, and mark it <span className={stepAccent.blue}>resolved</span>.
       </>
     ),
   },
@@ -89,7 +102,18 @@ const steps = [
 export default function Index() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [search, setSearch] = useState("");
+  const [mobileAction, setMobileAction] = useState<"lost" | "found">("lost");
+
+  const handleMobileActionClick = (type: "lost" | "found") => {
+    if (mobileAction === type) {
+      navigate(user ? `/post?type=${type}` : "/auth");
+    } else {
+      setMobileAction(type);
+      setTimeout(() => {
+        navigate(user ? `/post?type=${type}` : "/auth");
+      }, 200);
+    }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["home"],
@@ -98,14 +122,6 @@ export default function Index() {
       return { items, stats };
     },
   });
-
-  const handleSearch = () => {
-    if (search.trim()) {
-      navigate(`/items?q=${encodeURIComponent(search.trim())}`);
-    } else {
-      navigate("/items");
-    }
-  };
 
   const items = data?.items || [];
   const stats = data?.stats || { total: 0, lost: 0, found: 0 };
@@ -145,31 +161,58 @@ export default function Index() {
           <div className="mt-6 animate-fade-in sm:mt-8 md:mt-10" style={{ animationDelay: "0.16s" }}>
             <GooeySearchBar
               onSearch={(q) => {
-                if (q.trim()) {
-                  navigate(`/items?q=${encodeURIComponent(q.trim())}`);
-                } else {
-                  navigate("/items");
-                }
+                const trimmed = q.trim();
+                if (!trimmed) return;
+                navigate(`/items?q=${encodeURIComponent(trimmed)}`);
               }}
               placeholder={'Try "black wallet" or "ID card"'}
             />
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 animate-fade-in sm:mt-6 md:hidden" style={{ animationDelay: "0.24s" }}>
-            <Button
-              variant="outline"
-              className="h-10 rounded-full border-white/25 bg-white/10 px-3 text-[13px] text-white backdrop-blur-md"
-              asChild
+          <div
+            role="tablist"
+            aria-label="Report item"
+            className="relative isolate mt-3.5 flex h-11 w-full items-stretch rounded-full border border-white/20 bg-white/[0.12] p-1 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,0.18)] sm:mt-6 md:hidden"
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute bottom-1 left-1 top-1 z-0 w-[calc(50%-4px)] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.18),0_1px_2px_rgba(0,0,0,0.1)] transition-transform duration-200 ease-apple will-change-transform"
+              style={{
+                transform: mobileAction === "found" ? "translate3d(100%, 0, 0)" : "translate3d(0, 0, 0)",
+              }}
+            />
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileAction === "lost"}
+              onClick={() => handleMobileActionClick("lost")}
+              className="relative z-10 flex h-full flex-1 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 active:scale-[0.98]"
             >
-              <Link to={user ? "/post?type=lost" : "/auth"}>Lost</Link>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-10 rounded-full border-white/25 bg-white/10 px-3 text-[13px] text-white backdrop-blur-md"
-              asChild
+              <span
+                className={cn(
+                  "select-none whitespace-nowrap px-1 text-[12.5px] min-[380px]:text-[13px] font-medium tracking-tight leading-none transition-colors duration-200",
+                  mobileAction === "lost" ? "font-semibold text-neutral-900" : "text-white/80 hover:text-white"
+                )}
+              >
+                I lost something
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileAction === "found"}
+              onClick={() => handleMobileActionClick("found")}
+              className="relative z-10 flex h-full flex-1 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 active:scale-[0.98]"
             >
-              <Link to={user ? "/post?type=found" : "/auth"}>Found</Link>
-            </Button>
+              <span
+                className={cn(
+                  "select-none whitespace-nowrap px-1 text-[12.5px] min-[380px]:text-[13px] font-medium tracking-tight leading-none transition-colors duration-200",
+                  mobileAction === "found" ? "font-semibold text-neutral-900" : "text-white/80 hover:text-white"
+                )}
+              >
+                I found something
+              </span>
+            </button>
           </div>
           <div className="mt-6 hidden animate-fade-in gap-3 md:flex" style={{ animationDelay: "0.24s" }}>
             <GlowAction to={user ? "/post?type=lost" : "/auth"}>I lost something</GlowAction>
@@ -395,30 +438,30 @@ export default function Index() {
             {
               id: "google-only",
               icon: ShieldCheck,
-              iconColor: "text-rose-500 dark:text-rose-400",
+              iconColor: trustAccent.pink,
               body: (
                 <>
-                  Sign-in is locked to <span className="font-bold text-rose-500 dark:text-rose-400">@student.sfit.ac.in</span> and <span className="font-bold text-rose-500 dark:text-rose-400">@sfit.ac.in</span>. No public internet crowd.
+                  Sign-in is locked to <span className={`font-bold ${trustAccent.pink}`}>@student.sfit.ac.in</span> and <span className={`font-bold ${trustAccent.pink}`}>@sfit.ac.in</span>. No public internet crowd.
                 </>
               ),
             },
             {
               id: "private-contact",
               icon: EyeOff,
-              iconColor: "text-emerald-500 dark:text-emerald-400",
+              iconColor: trustAccent.green,
               body: (
                 <>
-                  The board shows a <span className="font-bold text-emerald-500 dark:text-emerald-400">name</span>, not your inbox. Claims are only visible to the <span className="font-bold text-emerald-500 dark:text-emerald-400">two people</span> involved.
+                  The board shows a <span className={`font-bold ${trustAccent.green}`}>name</span>, not your inbox. Claims are only visible to the <span className={`font-bold ${trustAccent.green}`}>two people</span> involved.
                 </>
               ),
             },
             {
               id: "public-meet",
               icon: MapPin,
-              iconColor: "text-violet-500 dark:text-violet-400",
+              iconColor: trustAccent.purple,
               body: (
                 <>
-                  Library, canteen, quadrangle. Describe it, then collect it <span className="font-bold text-violet-500 dark:text-violet-400">in person</span>.
+                  Library, canteen, security. Hand it over in a <span className={`font-bold ${trustAccent.purple}`}>public campus place</span> — never a private one.
                 </>
               ),
             },
@@ -468,80 +511,72 @@ export default function Index() {
         </div>
       </section>
 
-      {/* ─── Hairline Divider ─── */}
-      <div className="container">
-        <div className="border-t border-border/40" />
-      </div>
-
-      {/* ─── CTA footer (Light/Dark SFIT Campus Illustration) ─── */}
-      <section className="relative overflow-hidden pt-14 pb-14 text-center min-h-[80svh] min-[400px]:min-h-[85svh] flex flex-col justify-start sm:min-h-0 sm:py-32 md:py-44">
+      {/* ─── CTA + footer share one landscape ─── */}
+      <section className="relative mt-8 flex min-h-[90svh] flex-col overflow-hidden text-center sm:mt-0 sm:min-h-[42rem] md:min-h-[46rem]">
         <div className="absolute inset-0 z-0">
           <picture className="block h-full w-full dark:hidden">
             <source media="(max-width: 767px)" srcSet={ctaBgLightMobile} />
             <img
               src={ctaBgLight}
-              alt="SFIT campus illustration"
-              className="h-full w-full object-cover object-bottom md:object-center"
+              alt=""
+              className="h-full w-full object-cover object-center"
             />
           </picture>
           <picture className="hidden h-full w-full dark:block">
             <source media="(max-width: 767px)" srcSet={ctaBgDarkMobile} />
             <img
               src={ctaBgDark}
-              alt="SFIT campus illustration"
-              className="h-full w-full object-cover object-bottom md:object-center"
+              alt=""
+              className="h-full w-full object-cover object-center"
             />
           </picture>
         </div>
 
-        <div className="container relative z-10">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-foreground/70 dark:text-white/70 sm:text-[14px] sm:tracking-[0.24em]">
-            SFIT campus
+        <div className="container relative z-10 mx-auto flex flex-1 flex-col items-center justify-center px-4 pt-12 pb-8 sm:pt-20 sm:pb-14">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-foreground/65 dark:text-white/65 sm:text-[12px] sm:tracking-[0.28em]">
+            SFIT Campus
           </p>
-          <h2 className="mt-4 font-display text-[2.15rem] font-semibold leading-[1.08] tracking-tight text-foreground min-[375px]:text-[2.45rem] min-[420px]:text-[2.75rem] sm:mt-6 sm:text-5xl md:text-[4.5rem] lg:text-[5rem] dark:text-white">
-            Built only for <span className="text-primary">SFIT.</span>
+
+          <h2 className="mt-3.5 max-w-2xl font-display text-[2.25rem] font-semibold leading-[1.05] tracking-[-0.035em] text-foreground min-[375px]:text-[2.6rem] sm:mt-4 sm:text-5xl md:text-6xl lg:text-[4.25rem] dark:text-white">
+            Built only for{" "}
+            <span className="text-[#3F5A24] dark:text-[#E8CC96]">
+              SFIT.
+            </span>
           </h2>
-          <p className="mx-auto mt-3.5 max-w-sm text-[15px] font-medium leading-relaxed text-foreground/75 min-[375px]:text-[16px] sm:mt-5 sm:max-w-xl sm:text-[20px] md:text-[22px] dark:text-white/80">
-            Post, claim, and return on campus. College Google accounts only.
+
+          <p className="mx-auto mt-3 max-w-md text-[15px] font-normal leading-relaxed text-foreground/80 sm:mt-4 sm:max-w-lg sm:text-[17px] md:text-[18px] dark:text-white/80">
+            Post, claim, and recover lost belongings across campus.
           </p>
 
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2 sm:mt-8 sm:gap-2.5">
-            <span className="inline-flex items-center rounded-full border border-border/70 bg-white/85 px-3.5 py-1.5 text-[12.5px] font-medium text-foreground shadow-xs backdrop-blur-md dark:border-white/15 dark:bg-neutral-900/60 dark:text-white sm:px-4 sm:text-[14px]">
-              @student.sfit.ac.in
-            </span>
-            <span className="inline-flex items-center rounded-full border border-border/70 bg-white/85 px-3.5 py-1.5 text-[12.5px] font-medium text-foreground shadow-xs backdrop-blur-md dark:border-white/15 dark:bg-neutral-900/60 dark:text-white sm:px-4 sm:text-[14px]">
-              @sfit.ac.in
-            </span>
-          </div>
+          <p className="mt-2 text-[12px] tracking-tight text-foreground/60 sm:text-[13px] dark:text-white/55">
+            Sign in with your <span className="font-medium text-foreground/80 dark:text-white/75">@student.sfit.ac.in</span> or <span className="font-medium text-foreground/80 dark:text-white/75">@sfit.ac.in</span> account.
+          </p>
 
-          <div className="mt-7 flex flex-col items-center justify-center gap-3 min-[440px]:flex-row sm:mt-10 sm:gap-3.5">
+          <div className="mt-7 flex flex-row items-center justify-center gap-3 sm:mt-8 sm:gap-4">
             <Button
-              className="h-11 w-full max-w-[220px] rounded-full bg-white px-7 text-[14.5px] font-medium text-slate-900 shadow-md transition-all duration-200 hover:bg-slate-100 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 min-[440px]:h-12 min-[440px]:w-auto sm:h-13 sm:text-[16px]"
+              className="h-11 rounded-full bg-foreground px-6 text-[13.5px] font-medium text-background shadow-xs transition-all duration-200 hover:bg-foreground/90 active:scale-[0.98] dark:bg-white dark:text-neutral-950 dark:hover:bg-white/90 sm:h-12 sm:px-7 sm:text-[15px]"
               asChild
             >
-              <Link to={user ? "/dashboard" : "/auth"} className="inline-flex items-center justify-center gap-2.5">
-                {!user && (
-                  <svg className="h-4 w-4 shrink-0 sm:h-4.5 sm:w-4.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                  </svg>
-                )}
-                <span>{user ? "Go to dashboard" : "Sign in with Google"}</span>
+              <Link to={user ? "/dashboard" : "/auth"}>
+                <span className="sm:hidden">{user ? "Dashboard" : "Sign in"}</span>
+                <span className="hidden sm:inline">{user ? "Go to Dashboard" : "Sign in with Google"}</span>
               </Link>
             </Button>
+
             <Button
               variant="outline"
-              className="h-11 w-full max-w-[220px] rounded-full border-border/80 bg-white/85 px-7 text-[14.5px] font-medium text-foreground backdrop-blur-md transition-all duration-200 hover:bg-white dark:border-white/25 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 min-[440px]:h-12 min-[440px]:w-auto sm:h-13 sm:text-[16px]"
+              className="h-11 rounded-full border-foreground/20 bg-foreground/5 px-6 text-[13.5px] font-medium text-foreground backdrop-blur-md transition-all duration-200 hover:bg-foreground/10 active:scale-[0.98] dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:border-white/30 dark:hover:bg-white/15 sm:h-12 sm:px-7 sm:text-[15px]"
               asChild
             >
-              <Link to="/items" className="inline-flex items-center justify-center">
-                Browse the board
+              <Link to="/items">
+                <span className="sm:hidden">Browse items</span>
+                <span className="hidden sm:inline">Browse listings</span>
               </Link>
             </Button>
           </div>
         </div>
+
+        <Footer embedded />
       </section>
     </div>
   );

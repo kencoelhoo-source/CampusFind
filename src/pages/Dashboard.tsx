@@ -17,16 +17,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { Check, Package, Trash2, RotateCcw, Inbox, Bell } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
+import { Switch } from "@/components/ui/switch";
+import { useSfitEmailLock } from "@/hooks/use-sfit-email-lock";
+import { canManageSfitEmailLock } from "@/lib/email";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { notifyUser } from "@/services/notifications";
+import { notifyEmail, notifyUser, requestDesktopNotifications } from "@/services/notifications";
+import { hrefForNotification, presentNotification } from "@/lib/notification-routing";
 import { cn } from "@/lib/utils";
-import { DashRowSkeleton } from "@/components/common/Skeletons";
+import { DashRowSkeleton, DashboardSkeleton } from "@/components/common/Skeletons";
 import type { DBItem, DBClaim, DBNotification, DashboardData } from "@/types/database";
 
 const STATUS_WORD: Record<DBItem["status"], string> = {
@@ -47,12 +51,7 @@ const CLAIM_WORD: Record<DBClaim["status"], string> = {
   pending: "Waiting",
   approved: "Accepted",
   rejected: "Declined",
-};
-
-const CLAIM_TONE: Record<DBClaim["status"], string> = {
-  pending: "text-amber-700 dark:text-amber-400",
-  approved: "text-campus",
-  rejected: "text-muted-foreground",
+  withdrawn: "Withdrawn",
 };
 
 const DASH_TABS = ["my-items", "my-claims", "incoming", "notifications"] as const;
@@ -63,7 +62,7 @@ function tabFromSearch(value: string | null): DashTab {
 }
 
 async function fetchDashboardData(userId: string): Promise<DashboardData> {
-  const [itemsRes, claimsRes, notifsRes] = await Promise.all([
+  const [itemsRes, claimsRes, initialNotifsRes] = await Promise.all([
     supabase
       .from("items")
       .select("id, title, status, created_at, user_id, location, category")
@@ -76,14 +75,25 @@ async function fetchDashboardData(userId: string): Promise<DashboardData> {
       .order("created_at", { ascending: false }),
     supabase
       .from("notifications")
-      .select("id, title, message, created_at, read, related_item_id, related_claim_id")
+      .select("id, title, message, created_at, read, kind, related_item_id, related_claim_id")
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
   ]);
 
   if (itemsRes.error) throw itemsRes.error;
   if (claimsRes.error) throw claimsRes.error;
-  if (notifsRes.error) throw notifsRes.error;
+
+  let notificationRows = (initialNotifsRes.data || []) as unknown as DBNotification[];
+  if (initialNotifsRes.error) {
+    if (!/kind/i.test(initialNotifsRes.error.message)) throw initialNotifsRes.error;
+    const fallbackNotifs = await supabase
+      .from("notifications")
+      .select("id, title, message, created_at, read, related_item_id, related_claim_id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    if (fallbackNotifs.error) throw fallbackNotifs.error;
+    notificationRows = (fallbackNotifs.data || []) as unknown as DBNotification[];
+  }
 
   const myItems = (itemsRes.data as unknown as DBItem[]) || [];
   const itemIds = myItems.map((item) => item.id);
@@ -128,7 +138,7 @@ async function fetchDashboardData(userId: string): Promise<DashboardData> {
   return {
     myItems,
     myClaims: (claimsRes.data as unknown as DBClaim[]) || [],
-    notifications: (notifsRes.data as unknown as DBNotification[]) || [],
+    notifications: notificationRows,
     incomingClaims,
   };
 }
@@ -140,27 +150,26 @@ export default function Dashboard() {
   const currentTab = tabFromSearch(searchParams.get("tab"));
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [pendingSfitLock, setPendingSfitLock] = useState(false);
+  const [editingMeetupId, setEditingMeetupId] = useState<string | null>(null);
+  const [desktopAlertsOn, setDesktopAlertsOn] = useState(
+    () => typeof Notification !== "undefined" && Notification.permission === "granted",
+  );
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["dashboard", user?.id],
     queryFn: () => fetchDashboardData(user!.id),
     enabled: Boolean(user),
     retry: 1,
+    refetchInterval: 20000,
   });
+  const { locked: sfitLock, setLocked: setSfitLock, isSaving: sfitLockSaving } = useSfitEmailLock();
 
   if (authLoading) {
-    return (
-      <div className="container py-8 md:py-14">
-        <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Account</p>
-        <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight md:text-4xl">Dashboard</h1>
-        <div className="mt-8 space-y-3">
-          <SkeletonList />
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) return <Navigate to="/" replace />;
 
   const myItems = data?.myItems || [];
   const myClaims = data?.myClaims || [];
@@ -191,11 +200,36 @@ export default function Dashboard() {
     ]);
   };
 
+  const enableDesktopAlerts = async () => {
+    const permission = await requestDesktopNotifications();
+    if (permission === "granted") {
+      setDesktopAlertsOn(true);
+      toast.success("Desktop alerts on. You’ll see them when this tab is in the background.");
+    } else if (permission === "denied") toast.error("Desktop alerts are blocked in this browser.");
+    else toast.message("This browser doesn’t support desktop alerts.");
+  };
+
+  const clearAllAlerts = async () => {
+    const { error } = await supabase.from("notifications").delete().eq("user_id", user.id);
+    if (error) {
+      toast.error(`Could not clear alerts: ${error.message}`);
+      return;
+    }
+    toast.success("Alerts cleared");
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["dashboard", user.id] }),
+      queryClient.invalidateQueries({ queryKey: ["unread-notifications-count", user.id] }),
+    ]);
+  };
+
   const setItemStatus = async (id: string, status: DBItem["status"], successMsg: string) => {
     const { error } = await supabase.from("items").update({ status: status as never }).eq("id", id);
     if (error) {
       toast.error(`Failed to update item: ${error.message}`);
       return;
+    }
+    if (status === "returned") {
+      void notifyEmail({ kind: "item_returned", itemId: id });
     }
     toast.success(successMsg);
     await refreshQueries();
@@ -227,6 +261,7 @@ export default function Dashboard() {
     }
 
     setPendingDelete(null);
+    void notifyEmail({ kind: "item_deleted", itemId: id });
     toast.success("Listing deleted");
     await refreshQueries();
   };
@@ -253,7 +288,6 @@ export default function Dashboard() {
       const { error: itemError } = await supabase.from("items").update({ status: "claimed" as never }).eq("id", itemId);
       if (itemError) {
         toast.error(`Claim updated, but item status failed: ${itemError.message}`);
-        return;
       }
     }
 
@@ -264,17 +298,55 @@ export default function Dashboard() {
           userId: targetClaim.user_id,
           title: status === "approved" ? `Claim accepted: "${targetClaim.items?.title || "Item"}"` : `Claim declined: "${targetClaim.items?.title || "Item"}"`,
           message: status === "approved"
-            ? `Your claim was accepted. ${meetup?.trim() ? meetup.trim() : "Meet in a public campus spot."}`
+            ? `Your claim was accepted. ${meetup?.trim() ? meetup.trim() : "Hand it over in a public campus place (library, canteen, or security)."}`
             : `Your claim for "${targetClaim.items?.title || "Item"}" was declined.`,
           relatedItemId: itemId,
           relatedClaimId: claimId,
+          kind: status === "approved" ? "claim_approved" : "claim_rejected",
         });
       } catch (notifErr) {
         console.warn("Could not dispatch notification to claimant:", notifErr);
       }
     }
 
-    toast.success(status === "approved" ? "Accepted. Arrange the handover on campus." : "Claim declined.");
+    void notifyEmail({
+      kind: status === "approved" ? "claim_approved" : "claim_rejected",
+      claimId,
+    });
+    if (status === "approved") {
+      void notifyEmail({ kind: "claim_superseded", itemId });
+    }
+
+    toast.success(status === "approved" ? "Accepted. Other pending claims were closed. Use a public campus place to hand it over." : "Claim declined.");
+    await refreshQueries();
+  };
+
+  const withdrawClaim = async (claimId: string) => {
+    const { error } = await supabase.from("claims").update({ status: "withdrawn" as never }).eq("id", claimId);
+    if (error) {
+      toast.error(`Could not withdraw: ${error.message}`);
+      return;
+    }
+    void notifyEmail({ kind: "claim_withdrawn", claimId });
+    toast.success("Claim withdrawn.");
+    await refreshQueries();
+  };
+
+  const saveMeetup = async (claimId: string, meetup: string) => {
+    const trimmed = meetup.trim();
+    const { error } = await supabase
+      .from("claims")
+      .update({
+        meeting_details: trimmed || null,
+        meeting_requested: Boolean(trimmed),
+      } as never)
+      .eq("id", claimId);
+    if (error) {
+      toast.error(`Could not update pickup place: ${error.message}`);
+      return;
+    }
+    void notifyEmail({ kind: "meetup_updated", claimId });
+    toast.success("Pickup place saved.");
     await refreshQueries();
   };
 
@@ -283,6 +355,35 @@ export default function Dashboard() {
       <div>
         <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Account</p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight md:text-4xl">Dashboard</h1>
+        {canManageSfitEmailLock(user.email) && (
+          <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-border/60 bg-card/60 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-[14px] font-medium tracking-tight">SFIT emails only</p>
+              <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+                {sfitLock
+                  ? "Only @student.sfit.ac.in and @sfit.ac.in can sign in."
+                  : "Any Google account can sign in (testing). Turning this on signs out non-SFIT users."}
+              </p>
+            </div>
+            <Switch
+              checked={sfitLock}
+              disabled={sfitLockSaving}
+              onCheckedChange={async (next) => {
+                if (next) {
+                  setPendingSfitLock(true);
+                  return;
+                }
+                try {
+                  await setSfitLock(false);
+                  toast.success("Sign-in open to any Google account.");
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Could not update sign-in lock.");
+                }
+              }}
+              aria-label="SFIT emails only"
+            />
+          </div>
+        )}
       </div>
 
       {isError ? (
@@ -344,7 +445,7 @@ export default function Dashboard() {
             <SkeletonList />
           ) : myItems.length === 0 ? (
             <EmptyState
-              icon={<Package className="h-6 w-6 opacity-75" strokeWidth={1.75} />}
+              icon={<Package className="h-6 w-6 text-amber-500 dark:text-amber-400" strokeWidth={1.75} />}
               title="Nothing posted yet"
               text="Report something lost or found. It shows up on the board and here."
               action={
@@ -453,7 +554,7 @@ export default function Dashboard() {
             <SkeletonList />
           ) : myClaims.length === 0 ? (
             <EmptyState
-              icon={<Inbox className="h-6 w-6 opacity-75" strokeWidth={1.75} />}
+              icon={<Inbox className="h-6 w-6 text-indigo-500 dark:text-indigo-400" strokeWidth={1.75} />}
               title="No claims yet"
               text="When you claim something on the board, it appears here."
               action={
@@ -466,31 +567,42 @@ export default function Dashboard() {
             myClaims.map((claim) => (
               <article key={claim.id} className="tile p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="font-display text-[1.1rem] font-semibold tracking-tight">
-                      <Link to={`/items/${claim.item_id}`} className="hover:underline">
-                        {claim.items?.title || "Item"}
-                      </Link>
-                    </h2>
-                    {claim.message && (
-                      <p className="mt-1 text-[14px] leading-relaxed text-muted-foreground">{claim.message}</p>
-                    )}
-                  </div>
-                  <p className={cn("shrink-0 text-[13px] font-medium", CLAIM_TONE[claim.status])}>
-                    {CLAIM_WORD[claim.status]}
-                  </p>
+                  <h2 className="min-w-0 break-words font-display text-[1.1rem] font-semibold tracking-tight">
+                    <Link to={`/items/${claim.item_id}`} className="hover:underline">
+                      {claim.items?.title || "Item"}
+                    </Link>
+                  </h2>
+                  <StatusChip status={claim.status} />
                 </div>
+                {claim.message && (
+                  <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{claim.message}</p>
+                )}
 
                 {claim.status === "pending" && (
-                  <p className="mt-4 text-[13px] text-muted-foreground">Waiting for the poster to reply.</p>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <p className="text-[13px] text-muted-foreground">Waiting for the poster to reply.</p>
+                    <Button size="sm" variant="secondary" className="h-8 border border-border/70" onClick={() => void withdrawClaim(claim.id)}>
+                      Withdraw
+                    </Button>
+                  </div>
                 )}
                 {claim.status === "approved" && (
-                  <p className="mt-4 rounded-2xl bg-muted/80 px-4 py-3 text-[14px] leading-relaxed">
-                    {claim.meeting_details || "Accepted. Meet in a public campus spot."}
-                  </p>
+                  <MeetupBlock
+                    claim={claim}
+                    editing={editingMeetupId === claim.id}
+                    onEdit={() => setEditingMeetupId(claim.id)}
+                    onCancel={() => setEditingMeetupId(null)}
+                    onSave={async (meetup) => {
+                      await saveMeetup(claim.id, meetup);
+                      setEditingMeetupId(null);
+                    }}
+                  />
                 )}
                 {claim.status === "rejected" && (
                   <p className="mt-4 text-[13px] text-muted-foreground">Declined. You can look for another listing.</p>
+                )}
+                {claim.status === "withdrawn" && (
+                  <p className="mt-4 text-[13px] text-muted-foreground">You withdrew this claim.</p>
                 )}
               </article>
             ))
@@ -502,7 +614,7 @@ export default function Dashboard() {
             <SkeletonList />
           ) : incomingClaims.length === 0 ? (
             <EmptyState
-              icon={<Inbox className="h-6 w-6 opacity-75" strokeWidth={1.75} />}
+              icon={<Inbox className="h-6 w-6 text-sky-500 dark:text-sky-400" strokeWidth={1.75} />}
               title="Inbox is empty"
               text="When someone claims one of your listings, you’ll see it here."
             />
@@ -511,7 +623,7 @@ export default function Dashboard() {
               <article key={claim.id} className="tile p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="font-display text-[1.1rem] font-semibold tracking-tight">
+                    <h2 className="break-words font-display text-[1.1rem] font-semibold tracking-tight">
                       <Link to={`/items/${claim.item_id}`} className="hover:underline">
                         {claim.items?.title}
                       </Link>
@@ -520,11 +632,7 @@ export default function Dashboard() {
                       From {claim.profiles?.full_name || "an SFIT member"}
                     </p>
                   </div>
-                  {claim.status !== "pending" && (
-                    <p className={cn("shrink-0 text-[13px] font-medium", CLAIM_TONE[claim.status])}>
-                      {CLAIM_WORD[claim.status]}
-                    </p>
-                  )}
+                  {claim.status !== "pending" && <StatusChip status={claim.status} />}
                 </div>
 
                 <p className="mt-3 text-[15px] leading-relaxed">“{claim.message}”</p>
@@ -540,7 +648,7 @@ export default function Dashboard() {
                   >
                     <textarea
                       name="meetup"
-                      placeholder="Optional meetup — Library entrance, 4 PM"
+                      placeholder="Public pickup place — Library counter, daytime"
                       className="w-full rounded-2xl border border-border/70 bg-background px-3 py-2.5 text-[14px] outline-none focus:ring-2 focus:ring-ring/40"
                       rows={2}
                     />
@@ -561,8 +669,20 @@ export default function Dashboard() {
                   </form>
                 )}
 
-                {claim.status === "approved" && claim.meeting_details && (
-                  <p className="mt-4 text-[13px] text-muted-foreground">Meetup: {claim.meeting_details}</p>
+                {claim.status === "approved" && (
+                  <MeetupBlock
+                    claim={claim}
+                    editing={editingMeetupId === claim.id}
+                    onEdit={() => setEditingMeetupId(claim.id)}
+                    onCancel={() => setEditingMeetupId(null)}
+                    onSave={async (meetup) => {
+                      await saveMeetup(claim.id, meetup);
+                      setEditingMeetupId(null);
+                    }}
+                  />
+                )}
+                {claim.status === "withdrawn" && (
+                  <p className="mt-4 text-[13px] text-muted-foreground">This student withdrew the claim.</p>
                 )}
               </article>
             ))
@@ -570,57 +690,123 @@ export default function Dashboard() {
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-5 space-y-3">
+          {!desktopAlertsOn && (
+            <div className="tile flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+              <div className="min-w-0">
+                <p className="font-medium tracking-tight">Turn on desktop alerts</p>
+                <p className="mt-0.5 text-[13px] text-muted-foreground">Get a banner when this tab is in the background.</p>
+              </div>
+              <Button className="h-10 shrink-0 rounded-full px-5" onClick={() => void enableDesktopAlerts()}>
+                Turn on
+              </Button>
+            </div>
+          )}
           {isLoading ? (
             <SkeletonList />
           ) : notifications.length === 0 ? (
             <EmptyState
-              icon={<Bell className="h-6 w-6 opacity-75" strokeWidth={1.75} />}
+              icon={<Bell className="h-6 w-6 text-amber-500 dark:text-amber-300" strokeWidth={1.75} />}
               title="No alerts"
-              text="You’ll get a note here when something happens on your listings."
+              text="You’ll get a note here when someone claims a listing, a claim is accepted or declined, or a possible match is posted."
             />
           ) : (
-            notifications.map((notification) => {
-              const itemHref = notification.related_item_id ? `/items/${notification.related_item_id}` : null;
+            <>
+            {notifications.map((notification) => {
+              const href = hrefForNotification(notification);
+              const view = presentNotification(notification);
               return (
                 <article
                   key={notification.id}
-                  className={cn("tile flex items-start gap-3 p-4", notification.read && "opacity-55")}
+                  className="tile w-full min-w-0 p-4 sm:p-5"
                 >
-                  <span
-                    className={cn(
-                      "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                      notification.read ? "bg-transparent" : "bg-primary",
-                    )}
-                  />
-                  <div className="min-w-0 flex-1">
-                    {itemHref ? (
-                      <Link to={itemHref} className="block hover:underline">
-                        <h2 className="font-medium tracking-tight">{notification.title}</h2>
-                      </Link>
-                    ) : (
-                      <h2 className="font-medium tracking-tight">{notification.title}</h2>
-                    )}
-                    <p className="mt-1 text-[14px] leading-relaxed text-muted-foreground">{notification.message}</p>
-                    <p className="mt-2 text-[12px] text-muted-foreground">
-                      {format(new Date(notification.created_at), "d MMM, h:mm a")}
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                      {view.kicker}
                     </p>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {!notification.read && (
+                        <button
+                          type="button"
+                          onClick={() => markNotifRead(notification.id)}
+                          className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          Read
+                        </button>
+                      )}
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          notification.read ? "bg-transparent" : "bg-primary",
+                        )}
+                        aria-hidden
+                      />
+                    </span>
                   </div>
-                  {!notification.read && (
-                    <button
-                      type="button"
-                      onClick={() => markNotifRead(notification.id)}
-                      className="shrink-0 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      Read
-                    </button>
-                  )}
+                  <Link
+                    to={href}
+                    className="mt-1.5 block w-full min-w-0"
+                    onClick={() => {
+                      if (!notification.read) void markNotifRead(notification.id);
+                    }}
+                  >
+                    <h2 className="w-full min-w-0 font-display text-[1.05rem] font-semibold tracking-tight hover:underline [overflow-wrap:anywhere]">
+                      {view.title}
+                    </h2>
+                  </Link>
+                  <p className="mt-1 w-full text-[14px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                    {view.body}
+                  </p>
+                  <p className="mt-2 text-[12px] text-muted-foreground">
+                    {format(new Date(notification.created_at), "d MMM, h:mm a")}
+                  </p>
                 </article>
               );
-            })
+            })}
+            <div className="flex justify-center pt-2 text-[13px] text-muted-foreground">
+              <button type="button" className="hover:text-foreground" onClick={() => void clearAllAlerts()}>
+                Clear all
+              </button>
+            </div>
+            </>
           )}
         </TabsContent>
       </Tabs>
       )}
+
+      <AlertDialog open={pendingSfitLock} onOpenChange={(open) => !open && !sfitLockSaving && setPendingSfitLock(false)}>
+        <AlertDialogContent className="menu-surface max-w-[22rem] rounded-[1.75rem] border-border/60 p-6 sm:rounded-[1.75rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-xl tracking-tight">Lock sign-in to SFIT emails?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Anyone not on @student.sfit.ac.in or @sfit.ac.in will be signed out.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-5 flex flex-col gap-2.5 divide-y-0 sm:space-x-0">
+            <AlertDialogCancel
+              disabled={sfitLockSaving}
+              className="h-11 rounded-full border border-white/15 border-t-white/15 bg-white/5 font-medium text-foreground hover:bg-white/10"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={sfitLockSaving}
+              className="h-11 rounded-full border-0 !bg-white font-medium !text-neutral-900 hover:!bg-neutral-100"
+              onClick={async (event) => {
+                event.preventDefault();
+                try {
+                  await setSfitLock(true);
+                  setPendingSfitLock(false);
+                  toast.success("Sign-in locked to SFIT emails. Non-SFIT sessions will be signed out.");
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Could not update sign-in lock.");
+                }
+              }}
+            >
+              {sfitLockSaving ? "Locking…" : "Lock sign-in"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && !deleting && setPendingDelete(null)}>
         <AlertDialogContent className="menu-surface max-w-[22rem] rounded-[1.75rem] border-border/60 p-6 sm:rounded-[1.75rem]">
@@ -630,13 +816,16 @@ export default function Dashboard() {
               {pendingDelete?.title ? `“${pendingDelete.title}” will be removed from the board.` : "This listing will be removed from the board."} This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="mt-2 gap-2 sm:space-x-0">
-            <AlertDialogCancel disabled={deleting} className="rounded-full">
+          <AlertDialogFooter className="mt-5 flex flex-col gap-2.5 divide-y-0 sm:space-x-0">
+            <AlertDialogCancel
+              disabled={deleting}
+              className="h-11 rounded-full border border-white/15 border-t-white/15 bg-white/5 font-medium text-foreground hover:bg-white/10"
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={deleting}
-              className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="h-11 rounded-full border-0 bg-destructive font-medium text-destructive-foreground hover:bg-destructive/90"
               onClick={(event) => {
                 event.preventDefault();
                 if (pendingDelete) void deleteItem(pendingDelete.id);
@@ -661,6 +850,83 @@ function SkeletonList() {
   );
 }
 
+function StatusChip({ status }: { status: DBClaim["status"] }) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full px-2.5 py-1 text-[12px] font-medium",
+        status === "pending" && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+        status === "approved" && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+        status === "rejected" && "bg-muted text-muted-foreground",
+        status === "withdrawn" && "bg-muted text-muted-foreground",
+      )}
+    >
+      {CLAIM_WORD[status]}
+    </span>
+  );
+}
+
+function MeetupBlock({
+  claim,
+  editing,
+  onEdit,
+  onCancel,
+  onSave,
+}: {
+  claim: DBClaim;
+  editing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: (meetup: string) => void | Promise<void>;
+}) {
+  const note = claim.meeting_details?.trim();
+
+  if (!editing) {
+    return (
+      <div className="mt-4 rounded-2xl bg-muted/50 px-4 py-3">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Pickup place</p>
+        <p className="mt-1 text-[14px] leading-relaxed text-foreground">
+          {note || "Use a public campus place — library, canteen, or security."}
+        </p>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="mt-2 text-[13px] font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          {note ? "Change" : "Add a place"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      className="mt-4 space-y-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const meetup = new FormData(event.currentTarget).get("meetup") as string;
+        void onSave(meetup);
+      }}
+    >
+      <textarea
+        name="meetup"
+        defaultValue={note || ""}
+        placeholder="Library counter, daytime"
+        className="w-full rounded-2xl border border-border/70 bg-background px-3 py-2.5 text-[14px] outline-none focus:ring-2 focus:ring-ring/40"
+        rows={2}
+      />
+      <div className="flex gap-2">
+        <Button size="sm" className="h-9" type="submit">
+          Save place
+        </Button>
+        <Button size="sm" type="button" variant="secondary" className="h-9 border border-border/70" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function EmptyState({
   icon,
   title,
@@ -673,14 +939,14 @@ function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="tile px-6 py-12 sm:py-16 text-center">
+    <div className="tile flex flex-col items-center px-6 py-14 text-center sm:py-16">
       {icon && (
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-muted-foreground dark:bg-white/[0.08] dark:text-white/80">
+        <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
           {icon}
         </div>
       )}
-      <p className="font-display text-xl sm:text-2xl font-semibold tracking-tight text-foreground">{title}</p>
-      <p className="mx-auto mt-2 max-w-sm text-[14.5px] sm:text-[15px] leading-relaxed text-muted-foreground">{text}</p>
+      <p className="font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{title}</p>
+      <p className="mx-auto mt-2 max-w-sm text-[14.5px] leading-relaxed text-muted-foreground sm:text-[15px]">{text}</p>
       {action && <div className="mt-6">{action}</div>}
     </div>
   );

@@ -51,7 +51,7 @@ export function SegmentedControl<T extends string>({
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute left-0 top-1 z-0 h-9 rounded-full bg-card shadow-card"
+        className="pointer-events-none absolute left-0 top-1 z-0 h-9 rounded-full bg-white dark:bg-white/20 shadow-[0_2px_8px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)] border border-black/[0.06] dark:border-white/10"
         style={{
           width: pill.w,
           transform: `translate3d(${pill.x}px, 0, 0)`,

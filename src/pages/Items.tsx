@@ -42,7 +42,7 @@ export default function Items() {
     }
   }, [keyword, status, category, location, viewMode, searchParamString, setSearchParams]);
 
-  const { data: items = [], isLoading } = useQuery({
+  const { data: items = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["browse-items", { keyword, status, category, location }],
     queryFn: () => fetchBrowseItems({ keyword, status, category, location }),
     placeholderData: (previous) => previous,
@@ -175,7 +175,21 @@ export default function Items() {
         </div>
       )}
 
-      {isLoading ? (
+      {isError ? (
+        <div className="mt-16 rounded-3xl border border-dashed border-border/60 bg-card/20 p-12 text-center">
+          <p className="font-display text-2xl font-semibold tracking-tight">Couldn’t load the board</p>
+          <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">
+            {error instanceof Error ? error.message : "Please try again."}
+          </p>
+          <button
+            type="button"
+            className="mt-6 text-[14px] font-medium underline underline-offset-4"
+            onClick={() => void refetch()}
+          >
+            Try again
+          </button>
+        </div>
+      ) : isLoading ? (
         <div className={`mt-8 grid gap-4 sm:gap-5 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 xl:grid-cols-2"}`}>
           {Array.from({ length: 4 }).map((_, i) =>
             viewMode === "grid" ? <PosterSkeleton key={i} /> : <ListRowSkeleton key={i} />,
@@ -183,8 +197,8 @@ export default function Items() {
         </div>
       ) : items.length === 0 ? (
         <div className="mt-16 rounded-3xl border border-dashed border-border/60 bg-card/20 p-12 text-center backdrop-blur-sm sm:p-16">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-muted-foreground">
-            <Search className="h-6 w-6 opacity-60" />
+          <div className="mx-auto mb-4 flex items-center justify-center">
+            <Search className="h-10 w-10 sm:h-11 sm:w-11 text-sky-500 dark:text-sky-400 drop-shadow-[0_2px_10px_rgba(14,165,233,0.25)]" strokeWidth={1.6} />
           </div>
           <p className="mt-4 font-display text-2xl font-semibold tracking-tight text-foreground">
             {hasActiveFilters ? "Nothing matches your search." : "No items listed yet."}

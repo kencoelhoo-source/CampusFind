@@ -4,6 +4,7 @@ import { ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import type { ItemStatus } from "../types";
+import { itemSituation } from "../utils/item-custody";
 
 export interface ItemCardProps {
   id: string;
@@ -11,6 +12,8 @@ export interface ItemCardProps {
   description: string | null;
   category: string;
   location: string | null;
+  held_where?: string | null;
+  held_at?: string | null;
   status: ItemStatus;
   date_occurred: string | null;
   image_url?: string | null;
@@ -19,13 +22,6 @@ export interface ItemCardProps {
   poster_name?: string;
   layout?: "poster" | "list";
 }
-
-const STATUS_WORD: Record<ItemStatus, string> = {
-  lost: "Lost",
-  found: "Found",
-  claimed: "Claimed",
-  returned: "Returned",
-};
 
 const STATUS_TONE: Record<ItemStatus, string> = {
   lost: "text-rose-300",
@@ -47,6 +43,8 @@ export function ItemCard({
   description,
   category,
   location,
+  held_where,
+  held_at,
   status,
   date_occurred,
   image_url,
@@ -58,7 +56,14 @@ export function ItemCard({
   const { user } = useAuth();
   const dateLabel = format(new Date(date_occurred || created_at), "d MMM");
   const who = poster_name ? (user?.id === user_id ? "You" : poster_name) : null;
-  const situation = location ? `${STATUS_WORD[status]} · ${location}` : STATUS_WORD[status];
+  const situation = itemSituation({
+    status,
+    location,
+    held_where,
+    held_at,
+    isOwner: Boolean(user && user_id && user.id === user_id),
+    holderName: poster_name,
+  });
 
   if (layout === "list") {
     return (
@@ -100,7 +105,7 @@ export function ItemCard({
 
   return (
     <Link to={`/items/${id}`} className="group block">
-      <article className="relative isolate aspect-[4/5] w-full overflow-hidden rounded-[1.75rem] ring-1 ring-black/[0.06] transition-[transform,box-shadow] duration-500 ease-apple dark:ring-white/[0.08] group-hover:-translate-y-0.5 group-hover:shadow-[0_18px_40px_-24px_rgba(0,0,0,0.55)] md:aspect-[3/4]">
+      <article className="relative isolate aspect-[4/5] w-full overflow-hidden rounded-[1.75rem] ring-1 ring-black/[0.06] transition-shadow duration-500 ease-apple dark:ring-white/[0.08] group-hover:shadow-[0_18px_40px_-24px_rgba(0,0,0,0.55)] md:aspect-[3/4]">
         {image_url ? (
           <img
             src={image_url}

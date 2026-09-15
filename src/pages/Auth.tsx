@@ -2,38 +2,30 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { createGoogleNonce, GOOGLE_CLIENT_ID, loadGoogleIdentity } from "@/lib/google-gis";
+import { extractEmailFromCredential, formatAuthError, getEmailLockCache, isAllowedSfitEmail } from "@/lib/email";
+import { useSfitEmailLock } from "@/hooks/use-sfit-email-lock";
 import sfitWallDesktop from "@/assets/c4829165-9c96-4a52-8797-85b58329b445.png";
 import sfitWallMobile from "@/assets/940888dc-e740-4516-a100-3e2a57cbe46b.png";
 
 export default function Auth() {
   const { user, loading, signInWithGoogle, signInWithGoogleIdToken } = useAuth();
+  const { isLoading: lockLoading } = useSfitEmailLock();
   const [connecting, setConnecting] = useState(false);
+  const [pressed, setPressed] = useState(false);
   const desktopButtonRef = useRef<HTMLDivElement>(null);
   const mobileButtonRef = useRef<HTMLDivElement>(null);
   const nonceRef = useRef("");
   const useGis = Boolean(GOOGLE_CLIENT_ID);
 
   useEffect(() => {
-    // Dynamically match mobile system navigation and status bar to dark floor tone (#161412)
     const metaThemeColor = document.querySelector("meta[name='theme-color']");
-    const originalTheme = metaThemeColor?.getAttribute("content");
-    if (metaThemeColor) {
-      metaThemeColor.setAttribute("content", "#161412");
-    }
-
-    const prevBodyBg = document.body.style.backgroundColor;
-    const prevHtmlBg = document.documentElement.style.backgroundColor;
-    document.body.style.backgroundColor = "#161412";
-    document.documentElement.style.backgroundColor = "#161412";
+    metaThemeColor?.setAttribute("content", "#161412");
 
     return () => {
-      if (metaThemeColor && originalTheme) {
-        metaThemeColor.setAttribute("content", originalTheme);
-      }
-      document.body.style.backgroundColor = prevBodyBg;
-      document.documentElement.style.backgroundColor = prevHtmlBg;
+      const dark = document.documentElement.classList.contains("dark");
+      metaThemeColor?.setAttribute("content", dark ? "#111113" : "#f7f7f8");
     };
   }, []);
 
@@ -41,6 +33,11 @@ export default function Auth() {
   useEffect(() => {
     const handleReset = () => {
       setConnecting(false);
+      setPressed(false);
+      // Re-enforce GIS button invisibility after page restore / cancel return
+      if (mobileButtonRef.current) {
+        mobileButtonRef.current.style.opacity = '0.01';
+      }
     };
 
     window.addEventListener("pageshow", handleReset);
@@ -70,8 +67,23 @@ export default function Auth() {
     return () => window.clearTimeout(timer);
   }, [connecting]);
 
+  // Detect GIS iframe tap via window blur (cross-origin iframes steal focus on touch)
   useEffect(() => {
-    if (loading || user) return;
+    if (!useGis) return;
+    const handleBlur = () => {
+      // Only treat as GIS tap if an iframe within the page received focus
+      requestAnimationFrame(() => {
+        if (document.activeElement?.tagName === 'IFRAME') {
+          setPressed(true);
+        }
+      });
+    };
+    window.addEventListener('blur', handleBlur);
+    return () => window.removeEventListener('blur', handleBlur);
+  }, [useGis]);
+
+  useEffect(() => {
+    if (loading || user || lockLoading) return;
 
     let cancelled = false;
 
@@ -89,11 +101,19 @@ export default function Auth() {
           client_id: GOOGLE_CLIENT_ID,
           callback: async (response) => {
             if (!response.credential) return;
+
+            const email = extractEmailFromCredential(response.credential);
+            if (email && !isAllowedSfitEmail(email)) {
+              setConnecting(false);
+              toast.error("Only @student.sfit.ac.in or @sfit.ac.in accounts are allowed.");
+              return;
+            }
+
             setConnecting(true);
             const { error } = await signInWithGoogleIdToken(response.credential, nonceRef.current);
             if (error) {
               setConnecting(false);
-              toast.error(error.message);
+              toast.error(formatAuthError(error));
             }
           },
           nonce: hashed,
@@ -101,7 +121,7 @@ export default function Auth() {
           ux_mode: "popup",
           context: "signin",
           use_fedcm_for_prompt: true,
-          hd: "student.sfit.ac.in",
+          ...(getEmailLockCache() ? { hd: "student.sfit.ac.in" } : {}),
         });
 
         const renderGis = (target: HTMLElement, customWidth?: number) => {
@@ -118,7 +138,15 @@ export default function Auth() {
         };
 
         if (desktopButtonRef.current) renderGis(desktopButtonRef.current);
-        if (mobileButtonRef.current) renderGis(mobileButtonRef.current, 240);
+        if (mobileButtonRef.current) {
+          renderGis(mobileButtonRef.current, 240);
+          // Re-enforce opacity — Google's renderButton may override container styles async
+          const el = mobileButtonRef.current;
+          const enforce = () => { if (el) el.style.opacity = '0.01'; };
+          enforce();
+          setTimeout(enforce, 150);
+          setTimeout(enforce, 500);
+        }
       } catch {
         if (!cancelled) toast.error("Could not load Google sign-in.");
       }
@@ -129,7 +157,7 @@ export default function Auth() {
     return () => {
       cancelled = true;
     };
-  }, [loading, user, signInWithGoogleIdToken, useGis]);
+  }, [loading, user, lockLoading, signInWithGoogleIdToken, useGis]);
 
   if (!loading && user) {
     return <Navigate to="/" replace />;
@@ -146,6 +174,12 @@ export default function Auth() {
 
       {/* Mobile: Full-bleed architectural wall with native mobile pull-to-refresh */}
       <div className="relative min-h-[100dvh] w-full overflow-hidden bg-[#161412] md:hidden">
+        <Link
+          to="/"
+          className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))] z-20 rounded-full bg-black/35 px-3 py-1.5 text-[12px] font-medium text-white/90 backdrop-blur-md"
+        >
+          ← Board
+        </Link>
         {/* Full-bleed background image covering 100% of mobile screen */}
         <img
           src={sfitWallMobile}
@@ -172,39 +206,46 @@ export default function Auth() {
           <button
             type="button"
             onClick={async () => {
+              if (useGis) return; // GIS iframe handles auth; avoid competing redirect flow
               setConnecting(true);
               const { error } = await signInWithGoogle();
               if (error) {
                 setConnecting(false);
-                toast.error(error.message);
+                toast.error(formatAuthError(error));
               }
             }}
             disabled={connecting || loading}
             aria-label="Sign in with Google"
-            className="group absolute cursor-pointer rounded-[14px] transition-all duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900"
+            className="group absolute cursor-pointer overflow-hidden rounded-[11px] transition-all duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900"
             style={{
-              top: "58.5%",
-              left: "8.8%",
-              width: "44.0%",
-              height: "5.0%",
+              top: "58.4%",
+              left: "8.60%",
+              width: "44.20%",
+              height: "5.15%",
             }}
           >
             {/* Tactile hover sheen & press feedback directly over the image button */}
-            <div className="absolute inset-0 rounded-[14px] bg-black/0 transition-colors duration-150 group-hover:bg-black/[0.04] group-active:bg-black/[0.08]" />
-            <div className="absolute inset-0 rounded-[14px] ring-1 ring-white/0 transition-all duration-200 group-hover:ring-white/50 group-hover:shadow-[0_0_12px_rgba(255,255,255,0.35)]" />
+            <div className="absolute inset-0 rounded-[11px] bg-black/0 transition-colors duration-150 group-hover:bg-black/[0.04] group-active:bg-black/[0.08]" />
+            <div className="absolute inset-0 rounded-[11px] ring-1 ring-white/0 transition-all duration-200 group-hover:ring-white/50 group-hover:shadow-[0_0_12px_rgba(255,255,255,0.35)]" />
 
             {useGis && (
               <div
-                ref={mobileButtonRef}
-                className="pointer-events-auto absolute inset-0 opacity-[0.01] overflow-hidden [&>div]:!h-full [&>div]:!w-full [&_iframe]:!h-full [&_iframe]:!w-full"
-              />
-            )}
-
-            {connecting && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-[14px] bg-white/70 backdrop-blur-[2px]">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-800 border-t-transparent" />
+                style={{ opacity: 0 }}
+                className="absolute inset-0 overflow-hidden rounded-[11px] pointer-events-none"
+              >
+                <div
+                  ref={mobileButtonRef}
+                  className="pointer-events-auto h-full w-full overflow-hidden [&>div]:!h-full [&>div]:!w-full [&_iframe]:!h-full [&_iframe]:!w-full"
+                />
               </div>
             )}
+
+            {/* Apple-style press dim — no white overlays, just natural darkening */}
+            <div
+              className={`absolute inset-0 rounded-[11px] bg-black/25 pointer-events-none transition-opacity duration-200 ${
+                pressed || connecting ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
           </button>
 
           {/* Transparent interactive hotspot for 'Terms' link */}
@@ -238,6 +279,12 @@ export default function Auth() {
       {/* Desktop layout */}
       <div className="relative z-10 hidden h-full w-full flex-col px-16 py-12 md:flex md:justify-center lg:pl-24 xl:pl-32">
         <div className="my-auto flex w-full max-w-[440px] flex-col items-start text-left">
+          <Link
+            to="/"
+            className="mb-8 text-[13px] font-medium text-neutral-600 underline-offset-4 transition-colors hover:text-neutral-950 hover:underline"
+          >
+            ← Back to the board
+          </Link>
           <h1 className="font-display text-5xl font-bold leading-[1.08] tracking-[-0.03em] text-neutral-950">
             Sign in to{" "}
             <span className="inline text-neutral-950">
@@ -263,13 +310,13 @@ export default function Auth() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-12 w-full rounded-full border border-neutral-300/80 bg-white/95 px-5 text-[14.5px] font-medium tracking-tight text-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:bg-white hover:border-neutral-400/80 hover:shadow-[0_4px_14px_rgba(0,0,0,0.1)] active:scale-[0.985]"
+                className="h-12 w-full rounded-full border border-neutral-300/80 bg-white px-5 text-[14.5px] font-medium tracking-tight !text-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:border-neutral-400/80 hover:!bg-white hover:!text-neutral-900 hover:shadow-[0_4px_14px_rgba(0,0,0,0.1)] active:scale-[0.985]"
                 onClick={async () => {
                   setConnecting(true);
                   const { error } = await signInWithGoogle();
                   if (error) {
                     setConnecting(false);
-                    toast.error(error.message);
+                    toast.error(formatAuthError(error));
                   }
                 }}
                 disabled={connecting || loading}

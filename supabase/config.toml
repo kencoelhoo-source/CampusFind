@@ -1,4 +1,7 @@
 project_id = "qqrxhusiobedxequunzm"
+[functions.notify-email]
+enabled = true
+verify_jwt = true
 [functions.ai-matcher]
 enabled = false
 verify_jwt = true

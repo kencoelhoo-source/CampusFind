@@ -6,11 +6,13 @@ import { ClaimModal } from "@/features/items/components/ClaimModal";
 import { ItemCard } from "@/features/items/components/ItemCard";
 import { ArrowLeft, Check, Share2, X } from "lucide-react";
 import { format } from "date-fns";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchItemDetail } from "@/features/items/services/itemsApi";
 import { DetailSkeleton } from "@/components/common/Skeletons";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { custodyLabel } from "@/features/items/utils/item-custody";
 
 const STATUS_WORD: Record<string, string> = {
   lost: "Lost",
@@ -41,6 +43,21 @@ export default function ItemDetail() {
     enabled: Boolean(id),
   });
 
+  const { data: myClaim } = useQuery({
+    queryKey: ["my-claim", id, user?.id],
+    enabled: Boolean(id && user),
+    queryFn: async () => {
+      const { data: claim, error } = await supabase
+        .from("claims")
+        .select("id, status, message, meeting_details")
+        .eq("item_id", id!)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return claim;
+    },
+  });
+
   useEffect(() => {
     setActiveImage(0);
     setCopied(false);
@@ -67,16 +84,27 @@ export default function ItemDetail() {
 
   const { item, images, poster, relatedItems } = data;
   const dateLabel = format(new Date(item.date_occurred || item.created_at), "d MMMM yyyy");
-  const who = user?.id === item.user_id ? "You" : poster;
-  const statusWord = STATUS_WORD[item.status] ?? item.status;
-  const situation = item.location ? `${statusWord} in ${item.location}` : statusWord;
-  const canAct = item.status === "found" || item.status === "lost";
   const isOwner = Boolean(user && user.id === item.user_id);
+  const who = isOwner ? "You" : poster;
+  const statusWord = STATUS_WORD[item.status] ?? item.status;
+  const nowLabel = custodyLabel(item.held_where, item.held_at, {
+    isOwner,
+    holderName: poster,
+  });
+  const situation =
+    item.status === "found" && nowLabel
+      ? `${statusWord} · ${nowLabel}`
+      : item.location
+        ? `${statusWord} in ${item.location}`
+        : statusWord;
+  const atDesk = item.status === "found" && item.held_where === "at_desk" && Boolean(item.held_at);
+  const canClaim = (item.status === "lost" || item.status === "found") && !atDesk;
   const hero = images[activeImage];
   const actionLabel = item.status === "found" ? "This is mine" : "I found this";
 
   const specs = [
-    item.location ? { label: "Place", value: item.location } : null,
+    item.location ? { label: item.status === "lost" ? "Last seen" : "Found at", value: item.location } : null,
+    nowLabel ? { label: "Now", value: nowLabel } : null,
     { label: "Date", value: dateLabel },
     { label: "Type", value: item.category },
     { label: "From", value: who },
@@ -127,17 +155,17 @@ export default function ItemDetail() {
             </button>
 
             {images.length > 1 && (
-              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              <div className="mt-3 flex gap-2.5 overflow-x-auto p-2.5">
                 {images.map((url, i) => (
                   <button
                     key={url}
                     type="button"
                     onClick={() => setActiveImage(i)}
                     className={cn(
-                      "h-16 w-16 shrink-0 overflow-hidden rounded-2xl ring-1 ring-transparent transition-all duration-300 ease-apple",
+                      "h-16 w-16 shrink-0 overflow-hidden rounded-2xl ring-2 ring-offset-2 ring-offset-background transition-all duration-300 ease-apple",
                       i === activeImage
-                        ? "opacity-100 ring-2 ring-foreground ring-offset-2 ring-offset-background"
-                        : "opacity-45 hover:opacity-80",
+                        ? "opacity-100 ring-foreground"
+                        : "ring-transparent opacity-45 hover:opacity-80",
                     )}
                   >
                     <img src={url} alt="" className="h-full w-full object-cover" />
@@ -147,7 +175,7 @@ export default function ItemDetail() {
             )}
           </div>
 
-          <div className="md:sticky md:top-24">
+          <div>
             <p
               className={cn(
                 "animate-fade-in text-[13px] font-medium tracking-wide",
@@ -162,6 +190,11 @@ export default function ItemDetail() {
             {item.description && (
               <p className="animate-fade-in mt-4 max-w-md text-[16px] leading-relaxed text-muted-foreground" style={{ animationDelay: "110ms" }}>
                 {item.description}
+              </p>
+            )}
+            {atDesk && (
+              <p className="animate-fade-in mt-3 max-w-md text-[14px] leading-relaxed text-muted-foreground" style={{ animationDelay: "130ms" }}>
+                It’s already at the {item.held_at} desk. Ask there — you don’t need to claim it with the poster.
               </p>
             )}
 
@@ -179,17 +212,45 @@ export default function ItemDetail() {
             </dl>
 
             <div className="mt-8 flex items-center gap-3">
-              {canAct && !isOwner && user && (
+              {canClaim && !isOwner && user && !myClaim && (
                 <Button size="lg" className="h-12 flex-1 px-7 sm:flex-none" onClick={() => setClaimOpen(true)}>
                   {actionLabel}
                 </Button>
               )}
-              {canAct && !user && (
+              {canClaim && !user && (
                 <Button size="lg" className="h-12 flex-1 px-7 sm:flex-none" asChild>
                   <Link to="/auth">Sign in to continue</Link>
                 </Button>
               )}
-              {isOwner && <p className="text-[14px] text-muted-foreground">You posted this.</p>}
+              {isOwner && (
+                <p className="text-[14px] text-muted-foreground">
+                  {atDesk
+                    ? `You posted this. People collect it from the ${item.held_at} desk — no claims. Mark it returned in Dashboard when it’s gone.`
+                    : "You posted this. Claims arrive in Dashboard → Inbox."}
+                </p>
+              )}
+              {!isOwner && user && myClaim && (
+                <p className="text-[14px] text-muted-foreground">
+                  {myClaim.status === "pending" && (
+                    <>
+                      You already sent a note. Waiting on the poster.{" "}
+                      <Link to="/dashboard?tab=my-claims" className="underline underline-offset-4">
+                        View claim
+                      </Link>
+                    </>
+                  )}
+                  {myClaim.status === "approved" && (
+                    <>
+                      Accepted. {myClaim.meeting_details || "Hand it over in a public campus place."}{" "}
+                      <Link to="/dashboard?tab=my-claims" className="underline underline-offset-4">
+                        Details
+                      </Link>
+                    </>
+                  )}
+                  {myClaim.status === "rejected" && "This claim was declined. Look for another listing."}
+                  {myClaim.status === "withdrawn" && "You withdrew your claim on this listing."}
+                </p>
+              )}
               <button
                 type="button"
                 onClick={copyLink}
@@ -247,6 +308,7 @@ export default function ItemDetail() {
         itemStatus={item.status}
         onClaimed={() => {
           queryClient.invalidateQueries({ queryKey: ["item", id] });
+          queryClient.invalidateQueries({ queryKey: ["my-claim", id, user?.id] });
           queryClient.invalidateQueries({ queryKey: ["dashboard"] });
         }}
       />

@@ -5,9 +5,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
-import { validateClaimMessage } from "../utils/item-validation";
-import { notifyUser } from "@/services/notifications";
+import { toast } from "@/components/ui/sonner";
+import { notifyEmail, notifyUser } from "@/services/notifications";
+import { claimMessageSchema } from "@/lib/validations/item";
 
 export interface ClaimModalProps {
   open: boolean;
@@ -20,12 +20,12 @@ export interface ClaimModalProps {
 }
 
 export function ClaimModal({
-  open,
-  onOpenChange,
   itemId,
   itemTitle,
-  itemOwnerId,
   itemStatus = "found",
+  itemOwnerId,
+  open,
+  onOpenChange,
   onClaimed,
 }: ClaimModalProps) {
   const { user } = useAuth();
@@ -40,9 +40,9 @@ export function ClaimModal({
       return;
     }
 
-    const validationError = validateClaimMessage(message);
-    if (validationError) {
-      toast.error(validationError);
+    const validation = claimMessageSchema.safeParse({ message });
+    if (!validation.success) {
+      toast.error(validation.error.errors[0]?.message || "Please provide valid claim details.");
       return;
     }
 
@@ -63,7 +63,7 @@ export function ClaimModal({
 
       if (error) throw error;
 
-      if (itemOwnerId && itemOwnerId !== user.id) {
+      if (itemOwnerId && itemOwnerId !== user.id && claim?.id) {
         try {
           await notifyUser({
             userId: itemOwnerId,
@@ -72,14 +72,17 @@ export function ClaimModal({
               ? `A finder sent a message: "${trimmedMessage.slice(0, 120)}"`
               : `A student submitted a claim: "${trimmedMessage.slice(0, 120)}"`,
             relatedItemId: itemId,
-            relatedClaimId: claim?.id,
+            relatedClaimId: claim.id,
+            kind: "claim_submitted",
           });
         } catch (notifErr) {
-          console.warn("Could not dispatch notification:", notifErr);
+          console.warn("Could not dispatch in-app notification:", notifErr);
         }
+
+        void notifyEmail({ kind: "claim_submitted", claimId: claim.id });
       }
 
-      toast.success(isLostItem ? "Message sent! The owner will be notified." : "Claim sent. The finder will accept or decline.");
+      toast.success(isLostItem ? "Message sent." : "Claim sent.");
       setMessage("");
       onOpenChange(false);
       onClaimed();
@@ -104,7 +107,7 @@ export function ClaimModal({
           <DialogDescription>
             {isLostItem
               ? "Let the owner know where you found it and arrange a safe handover on campus."
-              : "Describe it in your own words — color, marks, what’s inside. The finder will accept or decline. You’ll meet on campus if it matches."}
+              : "Describe it in your own words — color, marks, what’s inside. The finder will accept or decline. Hand it over in a public campus place if it matches."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -115,7 +118,7 @@ export function ClaimModal({
             id="proof"
             placeholder={
               isLostItem
-                ? "e.g. Found near 2nd floor library reading table. I can meet you at the canteen during recess."
+                ? "e.g. Found near 2nd floor library reading table. I can hand it over at the library counter."
                 : "e.g. Navy backpack, torn left strap, physics notebook inside"
             }
             value={message}

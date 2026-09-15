@@ -13,6 +13,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/common/Logo";
 
@@ -68,37 +78,78 @@ export function Navbar() {
   const muted = overlay ? "text-white/75 hover:text-white" : "text-muted-foreground hover:text-foreground";
   const active = overlay ? "bg-white/15 text-white" : "bg-secondary text-foreground";
 
+  const [signOutOpen, setSignOutOpen] = useState(false);
+
   const accountMenu = user ? (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-8 w-8 overflow-hidden rounded-full border text-[11px] font-semibold active:scale-100",
-            overlay ? "border-white/30 bg-white/15 text-white hover:bg-white/25" : "border-border/80 bg-secondary",
-          )}
-          aria-label="Account menu"
+    <>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "avatar-trigger h-8 w-8 overflow-hidden rounded-full border text-[11px] font-semibold active:scale-100",
+              "outline-none ring-0 ring-offset-0 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 select-none",
+              "transition-colors duration-150",
+              overlay
+                ? "border-white/30 bg-white/15 text-white hover:bg-white/25 data-[state=open]:bg-white/25 data-[state=open]:border-white/40"
+                : "border-border/80 bg-secondary text-foreground hover:bg-secondary/80 data-[state=open]:bg-secondary/80 data-[state=open]:border-border",
+            )}
+            aria-label="Account menu"
+          >
+            {(user.user_metadata?.full_name || user.email || "U").charAt(0).toUpperCase()}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="w-56"
+          onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          {(user.user_metadata?.full_name || user.email || "U").charAt(0).toUpperCase()}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <div className="px-2.5 py-2">
-          <p className="truncate text-[13px] font-medium text-foreground">
-            {user.user_metadata?.full_name || "SFIT member"}
-          </p>
-          <p className="truncate text-[12px] text-muted-foreground">{user.email}</p>
-        </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate("/dashboard")}>Dashboard</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate("/post")}>Report an item</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => signOut()}>
-          <LogOut className="mr-2 h-3.5 w-3.5" /> Sign out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <div className="px-2.5 py-2">
+            <p className="truncate text-[13px] font-medium text-foreground">
+              {user.user_metadata?.full_name || "SFIT member"}
+            </p>
+            <p className="truncate text-[12px] text-muted-foreground">{user.email}</p>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => navigate("/dashboard")}>Dashboard</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate("/post")}>Report an item</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setSignOutOpen(true)}
+            className="text-red-500 focus:text-red-500 dark:text-red-400 dark:focus:text-red-400 focus:bg-red-500/10"
+          >
+            <LogOut className="mr-2 h-3.5 w-3.5" /> Sign out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+        <AlertDialogContent className="menu-surface max-w-[22rem] rounded-[1.75rem] border-border/60 p-6 sm:rounded-[1.75rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-xl tracking-tight">Leave your account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You can still browse the board. Sign in again anytime with Google.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-5 flex flex-col gap-2.5 divide-y-0 sm:space-x-0">
+            <AlertDialogCancel className="h-11 rounded-full border border-white/15 border-t-white/15 bg-white/5 font-medium text-foreground hover:bg-white/10">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="h-11 rounded-full border-0 !bg-destructive font-medium !text-white hover:!bg-destructive/90"
+              onClick={async () => {
+                await signOut();
+                setSignOutOpen(false);
+                navigate("/");
+              }}
+            >
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   ) : null;
 
   return (
@@ -221,7 +272,9 @@ export function Navbar() {
           >
             {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </Button>
-          {user ? (
+          {loading ? (
+            <div className={cn("h-8 w-8 shrink-0 rounded-full", overlay ? "bg-white/20" : "bg-muted")} />
+          ) : user ? (
             accountMenu
           ) : (
             <Button

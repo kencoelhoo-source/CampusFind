@@ -6,6 +6,8 @@ export interface ItemWithImage {
   description: string | null;
   category: string;
   location: string | null;
+  held_where?: string | null;
+  held_at?: string | null;
   status: ItemStatus;
   date_occurred: string | null;
   created_at: string;
@@ -20,6 +22,8 @@ export interface RawItem {
   description: string | null;
   category: string;
   location: string | null;
+  held_where?: string | null;
+  held_at?: string | null;
   status: string;
   date_occurred: string | null;
   created_at: string;

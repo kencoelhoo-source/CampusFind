@@ -31,6 +31,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     root.classList.toggle("dark", theme === "dark");
     root.style.colorScheme = theme;
     localStorage.setItem("theme", theme);
+    const meta = document.querySelector("meta[name='theme-color']");
+    if (meta && !window.location.pathname.startsWith("/auth")) {
+      meta.setAttribute("content", theme === "dark" ? "#111113" : "#f7f7f8");
+    }
   }, [theme]);
 
   const toggleTheme = () => {

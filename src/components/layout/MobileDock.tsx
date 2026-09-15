@@ -22,7 +22,7 @@ export function MobileDock() {
       { to: "/items", label: "Browse", icon: Search, match: (path) => path.startsWith("/items") },
       { to: user ? "/post" : "/auth", label: "Report", icon: Plus, match: (path) => path === "/post" },
       {
-        to: user ? "/dashboard" : "/auth",
+        to: user ? "/dashboard" : "/",
         label: "You",
         icon: User,
         match: (path) => path.startsWith("/dashboard"),

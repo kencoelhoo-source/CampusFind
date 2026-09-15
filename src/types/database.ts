@@ -14,7 +14,7 @@ export interface DBClaim {
   item_id: string;
   user_id: string;
   message: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "withdrawn";
   verification_question: string | null;
   verification_answer: string | null;
   meeting_requested: boolean;
@@ -30,6 +30,7 @@ export interface DBNotification {
   message: string;
   created_at: string;
   read: boolean;
+  kind?: string | null;
   related_item_id?: string | null;
   related_claim_id?: string | null;
 }

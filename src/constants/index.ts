@@ -26,13 +26,6 @@ export const LOCATIONS = [
   "Other",
 ] as const;
 
-export const STATUS_COLORS = {
-  lost: { bg: "bg-destructive/10", text: "text-destructive", label: "Lost" },
-  found: { bg: "bg-success/10", text: "text-success", label: "Found" },
-  claimed: { bg: "bg-warning/12", text: "text-warning", label: "Claimed" },
-  returned: { bg: "bg-primary/10", text: "text-primary", label: "Returned" },
-} as const;
-
 export const STATUS_STYLES: Record<
   string,
   { border: string; bg: string; text: string; label: string }
@@ -109,5 +102,3 @@ export const CATEGORY_STYLES: Record<
   },
 };
 
-export type ItemCategory = typeof CATEGORIES[number]["value"];
-export type ItemStatus = "lost" | "found" | "claimed" | "returned";

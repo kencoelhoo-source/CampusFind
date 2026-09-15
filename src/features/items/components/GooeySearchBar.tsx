@@ -67,7 +67,12 @@ export function GooeySearchBar({
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    onSearch(query);
+    const trimmed = query.trim();
+    if (!trimmed) {
+      inputRef.current?.focus();
+      return;
+    }
+    onSearch(trimmed);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -77,9 +82,8 @@ export function GooeySearchBar({
   };
 
   const ease = "780ms cubic-bezier(0.22, 1, 0.36, 1)";
-  const springTransition = `width ${ease}, left ${ease}`;
+  const widthTransition = `width ${ease}`;
   const dropletWidth = active ? 116 : 56;
-  const dropletLeft = active ? "calc(100% - 116px)" : "calc(100% - 56px)";
   const capsuleWidth = active ? "calc(100% - 134px)" : "100%";
 
   if (!isDesktop) {
@@ -115,13 +119,15 @@ export function GooeySearchBar({
               <X className="h-4 w-4" strokeWidth={2.2} />
             </button>
           ) : null}
-          <button
-            type="submit"
-            aria-label="Search"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-white"
-          >
-            <ArrowRight className="h-4 w-4" strokeWidth={2.2} />
-          </button>
+          {query.trim().length > 0 && (
+            <button
+              type="submit"
+              aria-label="Search"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-white shadow-sm transition-all duration-150 animate-in fade-in zoom-in-75 active:scale-95"
+            >
+              <ArrowRight className="h-4 w-4" strokeWidth={2.2} />
+            </button>
+          )}
         </div>
       </form>
     );
@@ -164,21 +170,21 @@ export function GooeySearchBar({
             className="relative h-full w-full"
             style={{ filter: "url(#gooey-merger)" }}
           >
-            {/* Main Big Drop (Seamless Capsule) */}
+            {/* Main Big Drop (Seamless Capsule) — left-pinned, only width moves */}
             <div
-              className="h-14 rounded-full bg-white"
+              className="absolute left-0 top-0 h-14 rounded-full bg-white"
               style={{
                 width: capsuleWidth,
-                transition: springTransition,
+                transition: widthTransition,
               }}
             />
 
+            {/* Search droplet — right-pinned so the outer edge never settles/snaps */}
             <div
-              className="absolute top-0 h-14 rounded-full bg-white"
+              className="absolute right-0 top-0 h-14 rounded-full bg-white"
               style={{
-                left: dropletLeft,
                 width: `${dropletWidth}px`,
-                transition: springTransition,
+                transition: widthTransition,
               }}
             />
           </div>
@@ -195,7 +201,7 @@ export function GooeySearchBar({
             className="relative flex h-14 cursor-text items-center pl-4 sm:pl-5 pr-2 sm:pr-4"
             style={{
               width: capsuleWidth,
-              transition: springTransition,
+              transition: widthTransition,
             }}
           >
             <Search className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-black/45" />
@@ -230,25 +236,25 @@ export function GooeySearchBar({
           </div>
 
           <div
-            className="absolute top-0 h-14"
+            className="absolute right-0 top-0 h-14"
             style={{
-              left: dropletLeft,
               width: `${dropletWidth}px`,
-              transition: springTransition,
+              transition: widthTransition,
             }}
           >
             <button
               type="button"
               onClick={handleSubmit}
               aria-label="Search"
-              className="flex h-14 w-full items-center justify-center gap-1.5 rounded-full font-semibold text-black focus:outline-none"
+              disabled={!query.trim()}
+              className="flex h-14 w-full items-center justify-end rounded-full pr-5 font-semibold text-black focus:outline-none transition-opacity disabled:opacity-40 disabled:cursor-default"
             >
               <span
-                className="overflow-hidden whitespace-nowrap text-[15px]"
+                className="overflow-hidden whitespace-nowrap pr-1.5 text-[15px]"
                 style={{
-                  maxWidth: active ? 64 : 0,
+                  maxWidth: active ? 70 : 0,
                   opacity: active ? 1 : 0,
-                  transition: `max-width ${ease}, opacity 280ms ease`,
+                  transition: `max-width ${ease}, opacity ${ease}`,
                 }}
               >
                 Search

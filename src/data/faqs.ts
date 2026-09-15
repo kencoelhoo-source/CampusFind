@@ -5,7 +5,11 @@ export const FAQS = [
   },
   {
     q: "How does a return actually work?",
-    a: "Post what you lost or found. If someone recognizes a found item, they send one short description only the owner would know. You accept or decline, optionally add a public campus meetup, and hand it over in person. No back-and-forth quiz.",
+    a: "Post what you lost or found. If you found something, say whether it’s still with you or you left it at a desk. Items left at a desk are collected there — no claim with the poster. If the finder still has it, tap “This is mine” and they accept or decline in Dashboard → Inbox.",
+  },
+  {
+    q: "Will I get an email if someone claims my item?",
+    a: "You always get an in-app alert (bell + Dashboard → Alerts/Inbox), including if the site is open in another tab. Email is sent when CampusFind mail is configured (Resend). Turn on desktop notifications on the Alerts tab to get a system banner while the tab is in the background.",
   },
   {
     q: "Do I have to answer verification questions?",
@@ -21,7 +25,7 @@ export const FAQS = [
   },
   {
     q: "Can I delete a listing?",
-    a: "Yes. Dashboard → Posted → delete. Photos are removed with the post.",
+    a: "Yes. Dashboard → Posted → delete. Photos are removed with the post. Marking a listing returned takes it off the public board but keeps the record so you can reopen it.",
   },
   {
     q: "Is this the official SFIT lost-and-found desk?",

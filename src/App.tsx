@@ -11,6 +11,9 @@ import { Navbar } from "@/components/layout/Navbar";
 import { MobileDock } from "@/components/layout/MobileDock";
 import { Footer } from "@/components/layout/Footer";
 import { AuthCurtain, PageTransition } from "@/components/common/PageTransition";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
+import { NetworkStatusNotifier } from "@/components/common/NetworkStatusNotifier";
+import { useNotificationRealtime } from "@/hooks/use-notification-realtime";
 
 const Index = lazy(() => import("./pages/Index"));
 const Items = lazy(() => import("./pages/Items"));
@@ -23,25 +26,49 @@ const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        if (error && typeof error === "object" && "status" in error) {
+          const status = (error as { status?: number }).status;
+          if (status && status >= 400 && status < 500) return false;
+        }
+        return failureCount < 2;
+      },
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 25000) + Math.random() * 800,
+      networkMode: "online",
+      staleTime: 1000 * 60 * 2,
+      refetchOnWindowFocus: true,
+    },
+    mutations: {
+      networkMode: "online",
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <Sonner />
-          <BrowserRouter>
-            <AppShell />
-          </BrowserRouter>
-        </AuthProvider>
-      </ThemeProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <Sonner />
+            <NetworkStatusNotifier />
+            <BrowserRouter>
+              <AppShell />
+            </BrowserRouter>
+          </AuthProvider>
+        </ThemeProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 function AppShell() {
   const { pathname } = useLocation();
+  useNotificationRealtime();
 
   return (
     <>
@@ -66,7 +93,7 @@ function AppShell() {
               </Routes>
             </PageTransition>
           </Suspense>
-          {pathname !== "/auth" && <Footer />}
+          {pathname !== "/auth" && pathname !== "/" && <Footer />}
         </main>
       </div>
     </>

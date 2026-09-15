@@ -13,11 +13,21 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CATEGORIES, LOCATIONS } from "@/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { format } from "date-fns";
 import { CalendarIcon, X, Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dedupeFiles, MAX_ITEM_IMAGES, validateItemImage } from "@/features/items/utils/item-validation";
+import { compressMultipleImages } from "@/lib/image-compressor";
+import { postItemSchema } from "@/lib/validations/item";
+import { notifyEmail } from "@/services/notifications";
+import {
+  clearPostDraft,
+  draftImagesToFiles,
+  fileToDraftImage,
+  readPostDraft,
+  writePostDraft,
+} from "@/features/items/utils/post-draft";
 
 export default function PostItem() {
   const { user } = useAuth();
@@ -31,10 +41,14 @@ export default function PostItem() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
+  const [heldWhere, setHeldWhere] = useState<"with_me" | "at_desk" | "">("");
+  const [heldAt, setHeldAt] = useState("");
   const [dateOccurred, setDateOccurred] = useState<Date>();
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
 
   useEffect(() => {
     const nextPreviews = images.map((file) => URL.createObjectURL(file));
@@ -45,32 +59,109 @@ export default function PostItem() {
     };
   }, [images]);
 
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const restore = async () => {
+      const draft = readPostDraft(user.id);
+      if (draft && !cancelled) {
+        setItemType(draft.itemType);
+        setTitle(draft.title);
+        setDescription(draft.description);
+        setCategory(draft.category);
+        setLocation(draft.location);
+        setHeldWhere(draft.heldWhere);
+        setHeldAt(draft.heldAt);
+        setDateOccurred(draft.dateOccurred ? new Date(draft.dateOccurred) : undefined);
+        if (draft.images.length > 0) {
+          try {
+            const restored = await draftImagesToFiles(draft.images);
+            if (!cancelled) setImages(restored);
+          } catch {
+            // Photos can fail to restore; text still comes back.
+          }
+        }
+      }
+      if (!cancelled) setDraftReady(true);
+    };
+
+    void restore();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user || !draftReady) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        let imageDrafts: { name: string; type: string; dataUrl: string }[] = [];
+        try {
+          imageDrafts = await Promise.all(images.map((file) => fileToDraftImage(file)));
+        } catch {
+          imageDrafts = [];
+        }
+        if (cancelled) return;
+        writePostDraft(user.id, {
+          itemType,
+          title,
+          description,
+          category,
+          location,
+          heldWhere,
+          heldAt,
+          dateOccurred: dateOccurred ? dateOccurred.toISOString() : null,
+          images: imageDrafts,
+        });
+      })();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [user, draftReady, itemType, title, description, category, location, heldWhere, heldAt, dateOccurred, images]);
+
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
 
-  const handleImageAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const combinedFiles = dedupeFiles([...images, ...files]);
-
-    if (combinedFiles.length > MAX_ITEM_IMAGES) {
-      toast.error(`Maximum ${MAX_ITEM_IMAGES} images allowed`);
-      e.target.value = "";
-      return;
-    }
+    e.target.value = "";
+    if (files.length === 0) return;
 
     for (const file of files) {
       const validationError = validateItemImage(file);
-
       if (validationError) {
         toast.error(validationError);
-        e.target.value = "";
         return;
       }
     }
 
-    setImages(combinedFiles);
-    e.target.value = "";
+    setCompressing(true);
+    const toastId = toast.loading("Optimizing photo(s)...");
+
+    try {
+      const compressedFiles = await compressMultipleImages(files);
+      const combinedFiles = dedupeFiles([...images, ...compressedFiles]);
+
+      if (combinedFiles.length > MAX_ITEM_IMAGES) {
+        toast.error(`Maximum ${MAX_ITEM_IMAGES} images allowed`, { id: toastId });
+        setCompressing(false);
+        return;
+      }
+
+      setImages(combinedFiles);
+      toast.success("Photo(s) optimized & ready", { id: toastId });
+    } catch {
+      toast.error("Failed to process images", { id: toastId });
+    } finally {
+      setCompressing(false);
+    }
   };
 
   const removeImage = (index: number) => {
@@ -79,14 +170,25 @@ export default function PostItem() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedTitle = title.trim();
-    const trimmedDescription = description.trim();
 
-    if (trimmedTitle.length < 3 || !category) {
-      toast.error("Add a title with at least 3 characters and choose a category.");
+    const validation = postItemSchema.safeParse({
+      title,
+      description,
+      category,
+      location,
+      dateOccurred,
+      itemType,
+      heldWhere: itemType === "found" ? heldWhere || undefined : undefined,
+      heldAt: itemType === "found" && heldWhere === "at_desk" ? heldAt : "",
+    });
+
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]?.message || "Please check your form inputs.";
+      toast.error(firstError);
       return;
     }
 
+    const validData = validation.data;
     setLoading(true);
 
     try {
@@ -94,12 +196,17 @@ export default function PostItem() {
         .from("items")
         .insert({
           user_id: user.id,
-          title: trimmedTitle,
-          description: trimmedDescription || null,
-          category: category as never,
-          location: location || null,
-          status: itemType as never,
-          date_occurred: dateOccurred ? format(dateOccurred, "yyyy-MM-dd") : null,
+          title: validData.title,
+          description: validData.description || null,
+          category: validData.category as never,
+          location: validData.location,
+          status: validData.itemType as never,
+          date_occurred: validData.dateOccurred ? format(validData.dateOccurred, "yyyy-MM-dd") : null,
+          held_where: validData.itemType === "found" ? validData.heldWhere ?? null : null,
+          held_at:
+            validData.itemType === "found" && validData.heldWhere === "at_desk"
+              ? validData.heldAt || null
+              : null,
         })
         .select("id")
         .single();
@@ -136,6 +243,9 @@ export default function PostItem() {
         toast.warning(`Item posted, but ${failedUploads.length} image upload(s) failed.`);
       }
 
+      void notifyEmail({ kind: "possible_match", itemId: item.id });
+
+      clearPostDraft(user.id);
       toast.success("Item posted successfully!");
       navigate(`/items/${item.id}`);
     } catch (err: unknown) {
@@ -156,7 +266,17 @@ export default function PostItem() {
           <CardDescription>Help your campus community by reporting a lost or found item.</CardDescription>
         </CardHeader>
         <CardContent className="p-6">
-          <Tabs value={itemType} onValueChange={(v) => setItemType(v as "lost" | "found")} className="mb-6">
+          <Tabs
+            value={itemType}
+            onValueChange={(v) => {
+              setItemType(v as "lost" | "found");
+              if (v === "lost") {
+                setHeldWhere("");
+                setHeldAt("");
+              }
+            }}
+            className="mb-6"
+          >
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="lost">I lost something</TabsTrigger>
               <TabsTrigger value="found">I found something</TabsTrigger>
@@ -185,7 +305,7 @@ export default function PostItem() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Location</Label>
+                <Label>{itemType === "lost" ? "Last seen" : "Found at"}</Label>
                 <Select value={location} onValueChange={setLocation}>
                   <SelectTrigger><SelectValue placeholder="Where?" /></SelectTrigger>
                   <SelectContent>
@@ -194,6 +314,54 @@ export default function PostItem() {
                 </Select>
               </div>
             </div>
+
+            {itemType === "found" && (
+              <div className="space-y-3">
+                <Label>Where is it now?</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeldWhere("with_me");
+                      setHeldAt("");
+                    }}
+                    className={cn(
+                      "rounded-2xl border px-3 py-3 text-left text-[14px] font-medium transition-colors",
+                      heldWhere === "with_me"
+                        ? "border-foreground bg-secondary"
+                        : "border-border/70 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                    )}
+                  >
+                    With me
+                    <span className="mt-1 block text-[12px] font-normal text-muted-foreground">I’m holding it</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeldWhere("at_desk");
+                      setHeldAt((current) => current || location);
+                    }}
+                    className={cn(
+                      "rounded-2xl border px-3 py-3 text-left text-[14px] font-medium transition-colors",
+                      heldWhere === "at_desk"
+                        ? "border-foreground bg-secondary"
+                        : "border-border/70 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                    )}
+                  >
+                    Left at a desk
+                    <span className="mt-1 block text-[12px] font-normal text-muted-foreground">Library, class, office</span>
+                  </button>
+                </div>
+                {heldWhere === "at_desk" && (
+                  <Select value={heldAt} onValueChange={setHeldAt}>
+                    <SelectTrigger><SelectValue placeholder="Which desk?" /></SelectTrigger>
+                    <SelectContent>
+                      {LOCATIONS.map((loc) => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Date {itemType === "lost" ? "Lost" : "Found"}</Label>
@@ -234,8 +402,8 @@ export default function PostItem() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
-              {loading ? "Posting..." : `Post ${itemType === "lost" ? "Lost" : "Found"} Item`}
+            <Button type="submit" className="w-full" size="lg" disabled={loading || compressing}>
+              {loading ? "Posting..." : compressing ? "Optimizing images..." : `Post ${itemType === "lost" ? "Lost" : "Found"} Item`}
             </Button>
           </form>
         </CardContent>

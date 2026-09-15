@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          id: number
+          sfit_email_lock: boolean
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          sfit_email_lock?: boolean
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          sfit_email_lock?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       claims: {
         Row: {
           created_at: string
@@ -105,6 +123,8 @@ export type Database = {
           description: string | null
           id: string
           location: string | null
+          held_at: string | null
+          held_where: string | null
           status: Database["public"]["Enums"]["item_status"]
           title: string
           updated_at: string
@@ -118,6 +138,8 @@ export type Database = {
           description?: string | null
           id?: string
           location?: string | null
+          held_at?: string | null
+          held_where?: string | null
           status?: Database["public"]["Enums"]["item_status"]
           title: string
           updated_at?: string
@@ -131,6 +153,8 @@ export type Database = {
           description?: string | null
           id?: string
           location?: string | null
+          held_at?: string | null
+          held_where?: string | null
           status?: Database["public"]["Enums"]["item_status"]
           title?: string
           updated_at?: string
@@ -142,6 +166,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          kind: string
           message: string
           read: boolean
           related_claim_id: string | null
@@ -153,6 +178,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          kind?: string
           message: string
           read?: boolean
           related_claim_id?: string | null
@@ -164,6 +190,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          kind?: string
           message?: string
           read?: boolean
           related_claim_id?: string | null
@@ -245,6 +272,62 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      list_public_items: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          title: string
+          description: string | null
+          category: string
+          location: string | null
+          held_where: string | null
+          held_at: string | null
+          status: string
+          date_occurred: string | null
+          created_at: string
+          user_id: string
+        }[]
+      }
+      get_public_item: {
+        Args: { _id: string }
+        Returns: {
+          id: string
+          title: string
+          description: string | null
+          category: string
+          location: string | null
+          held_where: string | null
+          held_at: string | null
+          status: string
+          date_occurred: string | null
+          created_at: string
+          user_id: string
+        }[]
+      }
+      list_public_item_images: {
+        Args: { _ids: string[] }
+        Returns: {
+          item_id: string
+          url: string
+        }[]
+      }
+      list_public_poster_names: {
+        Args: { _ids: string[] }
+        Returns: {
+          user_id: string
+          full_name: string | null
+        }[]
+      }
+      get_sfit_email_lock: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      set_sfit_email_lock: {
+        Args: {
+          _enabled: boolean
+        }
+        Returns: boolean
+      }
       create_notification: {
         Args: {
           _message: string
@@ -252,6 +335,7 @@ export type Database = {
           _related_item_id?: string | null
           _title: string
           _user_id: string
+          _kind?: string | null
         }
         Returns: string
       }
@@ -265,7 +349,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
-      claim_status: "pending" | "approved" | "rejected"
+      claim_status: "pending" | "approved" | "rejected" | "withdrawn"
       item_category:
         | "electronics"
         | "clothing"
@@ -404,7 +488,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
-      claim_status: ["pending", "approved", "rejected"],
+      claim_status: ["pending", "approved", "rejected", "withdrawn"],
       item_category: [
         "electronics",
         "clothing",

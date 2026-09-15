@@ -71,14 +71,14 @@ const TabsList = React.forwardRef<
     <TabsPrimitive.List
       ref={listRef}
       className={cn(
-        "relative isolate flex h-11 sm:h-11 items-stretch rounded-full bg-secondary/80 dark:bg-white/[0.06] border border-border/40 dark:border-white/[0.08] p-1 text-muted-foreground backdrop-blur-xl",
+        "relative isolate flex h-11 sm:h-11 items-stretch rounded-full bg-muted/80 dark:bg-white/[0.06] border border-border/60 dark:border-white/[0.08] p-1 text-muted-foreground backdrop-blur-xl",
         className,
       )}
       {...props}
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute left-0 top-0 z-0 rounded-full bg-background dark:bg-white/15 shadow-sm"
+        className="pointer-events-none absolute left-0 top-0 z-0 rounded-full bg-white dark:bg-white/20 shadow-[0_2px_8px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)] border border-black/[0.06] dark:border-white/10"
         style={{
           width: indicator.w,
           height: indicator.h,

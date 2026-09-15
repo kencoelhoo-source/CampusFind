@@ -2,26 +2,16 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ItemFilters, ItemWithImage, RawItem } from "../types";
 import { rankItemsByQuery } from "../utils/search-engine";
 
-export async function hydrateItems(items: RawItem[]): Promise<ItemWithImage[]> {
-  if (items.length === 0) {
-    return [];
-  }
+async function hydratePublicItems(items: RawItem[]): Promise<ItemWithImage[]> {
+  if (items.length === 0) return [];
 
   const itemIds = items.map((item) => item.id);
   const userIds = Array.from(new Set(items.map((item) => item.user_id)));
 
-  const [{ data: images, error: imagesError }, { data: profiles, error: profilesError }] = await Promise.all([
-    supabase.from("item_images").select("item_id, url").in("item_id", itemIds),
-    supabase.from("profiles").select("user_id, full_name").in("user_id", userIds),
+  const [{ data: images }, { data: profiles }] = await Promise.all([
+    supabase.rpc("list_public_item_images", { _ids: itemIds }),
+    supabase.rpc("list_public_poster_names", { _ids: userIds }),
   ]);
-
-  if (imagesError) {
-    throw imagesError;
-  }
-
-  if (profilesError) {
-    throw profilesError;
-  }
 
   const imageMap = new Map<string, string>();
   images?.forEach((image) => {
@@ -44,108 +34,83 @@ export async function hydrateItems(items: RawItem[]): Promise<ItemWithImage[]> {
 }
 
 export async function fetchRecentItems(limit = 8) {
-  const { data, error } = await supabase
-    .from("items")
-    .select("id, title, description, category, location, status, date_occurred, created_at, user_id")
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const { data, error } = await supabase.rpc("list_public_items");
+  if (error) throw error;
 
-  if (error) {
-    throw error;
-  }
+  const rows = ((data || []) as RawItem[])
+    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+    .slice(0, limit);
 
-  return hydrateItems((data || []) as RawItem[]);
+  return hydratePublicItems(rows);
 }
 
 export async function fetchBrowseItems(filters: ItemFilters) {
-  const cleanKeyword = filters.keyword.trim();
+  const { data, error } = await supabase.rpc("list_public_items");
+  if (error) throw error;
 
-  let query = supabase
-    .from("items")
-    .select("id, title, description, category, location, status, date_occurred, created_at, user_id")
-    .order("created_at", { ascending: false })
-    .limit(100);
+  let rows = (data || []) as RawItem[];
 
   if (filters.status !== "all") {
-    query = query.eq("status", filters.status as never);
+    rows = rows.filter((item) => item.status === filters.status);
+  } else {
+    rows = rows.filter((item) => item.status === "lost" || item.status === "found" || item.status === "claimed");
   }
-
   if (filters.category !== "all") {
-    query = query.eq("category", filters.category as never);
+    rows = rows.filter((item) => item.category === filters.category);
   }
-
   if (filters.location !== "all") {
-    query = query.eq("location", filters.location);
+    rows = rows.filter((item) => item.location === filters.location || item.held_at === filters.location);
   }
 
-  const { data, error } = await query;
-  if (error) {
-    throw error;
-  }
+  rows.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
+  rows = rows.slice(0, 100);
 
-  let hydrated = await hydrateItems((data || []) as RawItem[]);
-
+  let hydrated = await hydratePublicItems(rows);
+  const cleanKeyword = filters.keyword.trim();
   if (cleanKeyword && hydrated.length > 0) {
     hydrated = rankItemsByQuery(hydrated, cleanKeyword);
   }
-
   return hydrated;
 }
 
 export async function fetchHomeStats() {
-  const { data, error } = await supabase.from("items").select("status");
-
-  if (error) {
-    throw error;
-  }
+  const { data, error } = await supabase.rpc("list_public_items");
+  if (error) throw error;
 
   const rows = data || [];
+  const lost = rows.filter((item) => item.status === "lost").length;
+  const found = rows.filter((item) => item.status === "found").length;
 
   return {
-    total: rows.length,
-    lost: rows.filter((item) => item.status === "lost").length,
-    found: rows.filter((item) => item.status === "found").length,
+    total: lost + found,
+    lost,
+    found,
   };
 }
 
 export async function fetchItemDetail(id: string) {
-  const { data: item, error: itemError } = await supabase
-    .from("items")
-    .select("id, title, description, category, location, status, date_occurred, created_at, user_id")
-    .eq("id", id)
-    .single();
+  const { data, error } = await supabase.rpc("get_public_item", { _id: id });
+  if (error) throw error;
 
-  if (itemError) {
-    throw itemError;
+  const item = (data || [])[0] as RawItem | undefined;
+  if (!item) {
+    throw new Error("Item not found.");
   }
 
-  const [imagesRes, profileRes, relatedRes] = await Promise.all([
-    supabase.from("item_images").select("url").eq("item_id", id),
-    supabase.from("profiles").select("full_name").eq("user_id", item.user_id).maybeSingle(),
-    supabase
-      .from("items")
-      .select("id, title, description, category, location, status, date_occurred, created_at, user_id")
-      .eq("category", item.category)
-      .neq("id", id)
-      .limit(4),
+  const [imagesRes, namesRes, relatedRes] = await Promise.all([
+    supabase.rpc("list_public_item_images", { _ids: [id] }),
+    supabase.rpc("list_public_poster_names", { _ids: [item.user_id] }),
+    supabase.rpc("list_public_items"),
   ]);
 
-  if (imagesRes.error) {
-    throw imagesRes.error;
-  }
-
-  if (profileRes.error) {
-    throw profileRes.error;
-  }
-
-  if (relatedRes.error) {
-    throw relatedRes.error;
-  }
+  const related = ((relatedRes.data || []) as RawItem[])
+    .filter((row) => row.id !== id && row.category === item.category)
+    .slice(0, 4);
 
   return {
     item,
     images: imagesRes.data?.map((image) => image.url) || [],
-    poster: profileRes.data?.full_name || "Anonymous",
-    relatedItems: await hydrateItems((relatedRes.data || []) as RawItem[]),
+    poster: namesRes.data?.[0]?.full_name || "Anonymous",
+    relatedItems: await hydratePublicItems(related),
   };
 }
