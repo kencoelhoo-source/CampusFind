@@ -180,28 +180,28 @@ export default function Auth() {
         >
           ← Board
         </Link>
-        {/* Full-bleed background image covering 100% of mobile screen */}
-        <img
-          src={sfitWallMobile}
-          alt="CampusFind Login"
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center select-none"
-        />
-
         {/* Accessible Screen-Reader text for SEO and assistive technologies */}
         <div className="sr-only">
           <h1>Sign in to CampusFind</h1>
           <p>Use your official @student.sfit.ac.in or @sfit.ac.in Google account to report, search, and claim lost items.</p>
         </div>
 
-        {/* 9:16 interactive hotspot canvas mapped 1:1 to the object-cover image bounds */}
+        {/* 941:1672 architectural wall and interactive hotspot canvas mapped 1:1 */}
         <div
           className="pointer-events-auto absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none"
           style={{
-            height: "max(100%, calc(100vw * 16 / 9))",
-            width: "max(100%, calc(100vh * 9 / 16))",
-            aspectRatio: "9/16",
+            height: "max(100%, calc(100vw * 1672 / 941))",
+            width: "max(100%, calc(100dvh * 941 / 1672))",
+            aspectRatio: "941 / 1672",
           }}
         >
+          {/* Full-bleed background image covering 100% of canvas */}
+          <img
+            src={sfitWallMobile}
+            alt="CampusFind Login"
+            className="pointer-events-none h-full w-full object-cover select-none"
+          />
+
           {/* Tactile Button Hotspot directly over the rendered 'Sign in with Google' button in the image */}
           <button
             type="button"
@@ -218,10 +218,10 @@ export default function Auth() {
             aria-label="Sign in with Google"
             className="group absolute cursor-pointer overflow-hidden rounded-[11px] transition-all duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900"
             style={{
-              top: "58.4%",
-              left: "8.60%",
+              top: "58.50%",
+              left: "8.95%",
               width: "44.20%",
-              height: "5.15%",
+              height: "4.60%",
             }}
           >
             {/* Tactile hover sheen & press feedback directly over the image button */}
@@ -267,9 +267,9 @@ export default function Auth() {
             aria-label="Privacy Policy"
             className="absolute rounded transition-colors hover:bg-black/[0.06] active:bg-black/[0.1] before:absolute before:-inset-2 before:content-['']"
             style={{
-              top: "67.8%",
+              top: "67.7%",
               left: "12.8%",
-              width: "15.0%",
+              width: "14.5%",
               height: "2.0%",
             }}
           />
