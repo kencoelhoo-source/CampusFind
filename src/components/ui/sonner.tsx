@@ -42,7 +42,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       position="top-center"
       offset={16}
-      mobileOffset={{ top: 12 }}
       duration={3200}
       visibleToasts={1}
       expand={false}
@@ -125,10 +124,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
         classNames: {
           toast:
             "group toast flex !w-fit max-w-[min(26rem,calc(100vw-2rem))] items-center justify-center gap-2.5 rounded-full border border-white/[0.14] bg-neutral-950 py-2.5 pl-3 pr-4 text-[13.5px] font-medium leading-snug text-neutral-100 shadow-[0_12px_40px_rgba(0,0,0,0.4),0_1px_1px_rgba(255,255,255,0.12)_inset]",
-          title: "whitespace-nowrap text-[13.5px] font-medium tracking-tight text-neutral-100",
-          description: "whitespace-nowrap text-[12.5px] font-normal text-neutral-400",
+          title: "truncate whitespace-nowrap text-[13.5px] font-medium tracking-tight text-neutral-100",
+          description: "truncate whitespace-nowrap text-[12.5px] font-normal text-neutral-400",
           icon: "flex items-center justify-center shrink-0 self-center",
-          content: "flex min-w-0 flex-col justify-center whitespace-nowrap",
+          content: "flex min-w-0 flex-col justify-center",
           actionButton:
             "rounded-full bg-white/12 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 transition-colors",
           cancelButton:
