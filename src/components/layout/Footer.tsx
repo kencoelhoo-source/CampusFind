@@ -22,8 +22,8 @@ export function Footer({ embedded = false }: { embedded?: boolean }) {
         className={cn(
           "mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-5 py-2.5 text-center text-[12px] sm:flex-row sm:gap-4 sm:px-6 sm:py-3 sm:text-left lg:px-8",
           embedded
-            ? "text-foreground/60 dark:text-white/50"
-            : "text-muted-foreground/60",
+            ? "text-white/85 drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)]"
+            : "text-muted-foreground/80",
         )}
       >
         <p className="tracking-tight">Copyright © {new Date().getFullYear()} CampusFind. SFIT, Mumbai.</p>
@@ -35,8 +35,8 @@ export function Footer({ embedded = false }: { embedded?: boolean }) {
               className={cn(
                 "text-[12px] transition-colors duration-200",
                 embedded
-                  ? "text-foreground/60 hover:text-foreground dark:text-white/50 dark:hover:text-white"
-                  : "text-muted-foreground/60 hover:text-foreground/90",
+                  ? "text-white/85 hover:text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)]"
+                  : "text-muted-foreground/80 hover:text-foreground/90",
               )}
             >
               {link.label}

@@ -532,7 +532,7 @@ export default function Index() {
           </picture>
         </div>
 
-        <div className="container relative z-10 mx-auto flex flex-1 flex-col items-center justify-center px-4 pt-12 pb-8 sm:pt-20 sm:pb-14">
+        <div className="container relative z-10 mx-auto flex flex-1 flex-col items-center justify-center px-4 pt-16 pb-8 translate-y-7 sm:translate-y-0 sm:pt-20 sm:pb-14">
           <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-foreground/65 dark:text-white/65 sm:text-[12px] sm:tracking-[0.28em]">
             SFIT Campus
           </p>
