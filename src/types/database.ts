@@ -7,6 +7,8 @@ export interface DBItem {
   image_url?: string | null;
   location?: string | null;
   category?: string | null;
+  held_where?: string | null;
+  held_at?: string | null;
 }
 
 export interface DBClaim {
@@ -20,8 +22,17 @@ export interface DBClaim {
   meeting_requested: boolean;
   meeting_details: string | null;
   appeal_message: string | null;
-  items?: { title: string; user_id?: string; status?: string };
+  items?: {
+    id?: string;
+    title: string;
+    user_id?: string;
+    status?: string;
+    category?: string | null;
+    location?: string | null;
+    image_url?: string | null;
+  };
   profiles?: { full_name: string } | null;
+  created_at?: string;
 }
 
 export interface DBNotification {

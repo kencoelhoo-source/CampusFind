@@ -530,3 +530,58 @@ When modifying or extending CampusFind:
 * **Keep listings private**. Never expose poster emails or phone numbers on public browse views.
 * **Maintain the custom search engine**. When adding campus terminology, enhance `SYNONYMS` in `search-engine.ts` and test with `src/test/search-engine.test.ts`.
 * **Respect the design system**. Use the established Apple aesthetic, tokens in `index.css`, custom easing curves (`cubic-bezier(0.22, 1, 0.36, 1)`), and standard component patterns.
+
+---
+
+## 10. Recent Architectural Upgrades & Changelog (September 2026)
+
+### 10.1 Custody & Item Lifecycle Integrity
+- **`item-custody.ts` & `ItemCard.tsx`**:
+  - Gated all physical custody labels strictly to `status === "found"`.
+  - Resilient fallback for `returned` items to correctly output "Resolved · [Location]" if the item was originally lost (no `held_where`).
+- **`Dashboard.tsx`**:
+  - Stale custody clearance: `setItemStatus` wipes `held_where` and `held_at` when status transitions to `lost`.
+  - Selected `held_where` and `held_at` in `fetchDashboardData` to preserve original listing type.
+  - Updated status badge: correctly labels resolved lost items as "Resolved" rather than "Returned".
+  - Reopening logic: automatically reopens as "lost" or "found" matching its original posting type to prevent data corruption.
+- **`itemsApi.ts`**:
+  - Removed arbitrary filter exclusion of `returned` items when `filters.status === "all"`, restoring user expectation that "All status" displays the entire board.
+
+### 10.2 Auth Modal & Primary CTA Elevation
+- **`AuthPromptModal.tsx` & `PostItem.tsx`**:
+  - **Hover Border Jump Elimination**: Replaced opacity-based transitions with solid opaque fills (`hover:bg-neutral-800` in light mode, `hover:bg-[#ebebee]` in dark mode) and added hardware-accelerated transforms (`transform-gpu isolate overflow-hidden`), preventing subpixel border jitter.
+  - **Apple Dark Mode Palette**: Replaced stark white button with Apple dark elevated fill (`#2c2c30` with `border-white/[0.12]`, transitioning to `#38383e` on hover), eliminating glare while cleanly framing the 4-color Google "G" emblem.
+  - **Zero Pills & Zero Dots**: Replaced capsule domain wrappers with clean, restrained typography.
+
+### 10.3 Dashboard — My Claims 2-Column Responsive Layout
+- Replaced the single-column stretched view with a responsive 2-column gallery (`grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5`), eliminating dead space on laptop displays while maintaining native touch sizing on mobile.
+- Enriched `DBClaim` with item thumbnails (`item_images` query join) and location tags.
+- Integrated Apple 3-stage lifecycle progress rail (`Submitted` ── `Review` ── `Handover`) with 2px rounded horizontal indicators and pure typographic labels.
+
+### 10.4 Dashboard — Alerts (`notifications`) Architectural Overhaul
+- **Header & Filtering**: Introduced segmented toggle (`All` vs `Unread`), bulk actions ("Mark all read", "Clear all"), and live unread indicator badge.
+- **Dismissible Desktop Alert Banner**: Native Safari/macOS styled banner with naked `Bell` vector icon, clear value proposition, and discrete dismiss.
+- **`NotificationCard` Elevation**: Multi-column 2-column layout, tracked category kicker (`CLAIM UPDATE`, `HANDOVER`), dynamic relative timestamps (`5m ago`, `2h ago`), and typographic `NEW` tag.
+- **`EmptyState` Polish**: Stripped artificial circular icon wrappers for naked, optically balanced vector icons.
+
+### 10.5 Dashboard — Inbox (`incoming`) Full Redesign: Interactive Triage Queue (Apple Mail / Notes Grade)
+- **Eliminated Repetitive Templates & Layout Jitter**: Replaced unstable auto-height wrappers with a rock-solid dual-panel frame (`h-[580px] lg:h-[620px]`). Both panels scroll independently (`overflow-y-auto`), ensuring that clicking any queue item never alters the parent container's height or triggers browser scrollbar flashing.
+- **Continuous 56px Top Header Baseline**:
+  - Both the left Queue panel and right Inspection panel share an identical `h-14` (56px) header height and border-b (`border-black/[0.08] dark:border-white/[0.08]`), establishing a single unbroken horizontal divider across laptop viewports.
+  - **Left Header**: Displays item count and an Apple segmented control.
+  - **Right Header**: Displays claimant avatar initials (`getInitials`), full name, and timestamp on desktop; displays a 100% borderless iOS `< Claims` navigation chevron on mobile.
+- **True Concentric Segmented Slider (`rounded-[8px]` + `rounded-[6px]`)**:
+  - Replaced the distorted capsule geometry with mathematically concentric radii: outer track `rounded-[8px]` with `p-[2.5px]` inset (`bg-black/[0.05] dark:bg-white/[0.08]`, zero harsh borders); sliding thumb `rounded-[6px]` (`8px - 2.5px ≈ 6px`) with soft Apple shadow (`shadow-[0_1px_2.5px_rgba(0,0,0,0.1)]`).
+  - Corner curvature remains equidistant across every subpixel.
+- **Glyph Protection & Zero Text Clipping**:
+  - Fixed Windows DirectWrite glyph clipping on font boundaries (such as the letter "o" in "Coelho") by enforcing `min-w-0 pr-2 block` on queue items and allowing natural wrapping on inspection headers.
+- **3-Card Inspection Console Architecture (Google Squircle Geometry × Apple Minimalism)**:
+  - Replaced the loose floating items and giant bottom void with three structured, beautifully rounded Google-style surface cards (`rounded-2xl`, 16px corner radius, `bg-neutral-50/70 dark:bg-[#1c1c1f]`, `border-neutral-200/80 dark:border-white/[0.08]`):
+    - **Card 1 (Profile & Item Context)**: 40px initials avatar, full claimant name, filing timestamp, hairline divider, 44px item thumbnail, and interactive "View item ↗" button.
+    - **Card 2 (Verification Proof)**: ShieldCheck vector icon, uppercase category kicker, and an elevated inner quote well (`rounded-xl bg-white dark:bg-[#141416] p-4`).
+    - **Card 3 (Handover Console & Actions)**: Handover location field with strict `pl-10` padding (eliminating icon overlap), guidance subtitle, and dual balanced action buttons (`h-10 rounded-xl`, `active:scale-[0.98]` tactile press physics).
+- **Absolute Glyph / Icon Buffer Fix**:
+  - Replaced the non-standard `pl-8.5` with standard `pl-10` (40px) against `left-3.5` (14px) and `w-4` (16px), guaranteeing a clean 10px optical buffer between the `MapPin` icon and input placeholder text.
+- **Micro-interactions & Tactile Feedback**:
+  - Buttons feature `active:scale-[0.98]` spring depression and 150ms border/background transitions.
+  - Interactive pill links feature subtle hover lift and click feedback.

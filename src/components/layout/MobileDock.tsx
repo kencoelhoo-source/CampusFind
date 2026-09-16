@@ -2,6 +2,7 @@ import { useMemo, useRef, useEffect, startTransition } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Home, Search, Plus, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { cn } from "@/lib/utils";
 
 type DockTab = {
@@ -15,12 +16,13 @@ export function MobileDock() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { openAuthPrompt } = useAuthPrompt();
 
   const tabs = useMemo<DockTab[]>(
     () => [
       { to: "/", label: "Home", icon: Home, match: (path) => path === "/" },
       { to: "/items", label: "Browse", icon: Search, match: (path) => path.startsWith("/items") },
-      { to: user ? "/post" : "/auth", label: "Report", icon: Plus, match: (path) => path === "/post" },
+      { to: "/post", label: "Report", icon: Plus, match: (path) => path === "/post" },
       {
         to: user ? "/dashboard" : "/",
         label: "You",
@@ -265,6 +267,11 @@ export function MobileDock() {
       });
 
       if (nearest !== activeIndex) {
+        if (tabs[nearest].label === "Report" && !user) {
+          animateToTab(activeIndex);
+          openAuthPrompt({ actionType: "report", redirectUrl: "/post" });
+          return;
+        }
         startTransition(() => {
           navigate(tabs[nearest].to);
         });
@@ -311,6 +318,11 @@ export function MobileDock() {
               onClick={(e) => {
                 if (hasDraggedRef.current) {
                   e.preventDefault();
+                  return;
+                }
+                if (tab.label === "Report" && !user) {
+                  e.preventDefault();
+                  openAuthPrompt({ actionType: "report", redirectUrl: "/post" });
                   return;
                 }
                 animateToTab(idx);

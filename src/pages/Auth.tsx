@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/components/ui/sonner";
@@ -11,6 +11,7 @@ import sfitWallMobile from "@/assets/8371d784-9f63-4ef3-9706-362a8cc2465a.png";
 
 export default function Auth() {
   const { user, loading, signInWithGoogle, signInWithGoogleIdToken } = useAuth();
+  const [searchParams] = useSearchParams();
   const { isLoading: lockLoading } = useSfitEmailLock();
   const [connecting, setConnecting] = useState(false);
   const [pressed, setPressed] = useState(false);
@@ -160,7 +161,8 @@ export default function Auth() {
   }, [loading, user, lockLoading, signInWithGoogleIdToken, useGis]);
 
   if (!loading && user) {
-    return <Navigate to="/" replace />;
+    const redirect = searchParams.get("redirect") || "/";
+    return <Navigate to={redirect} replace />;
   }
 
   return (

@@ -26,7 +26,15 @@ function tick() {
   if (anyLit) raf = requestAnimationFrame(tick);
 }
 
-export function GlowAction({ to, children }: { to: string; children: ReactNode }) {
+export function GlowAction({
+  to,
+  onClick,
+  children,
+}: {
+  to?: string;
+  onClick?: (e: React.MouseEvent) => void;
+  children: ReactNode;
+}) {
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -92,9 +100,15 @@ export function GlowAction({ to, children }: { to: string; children: ReactNode }
 
   return (
     <div ref={wrapRef} className="hero-glow">
-      <Link to={to} className="hero-glow-btn">
-        {children}
-      </Link>
+      {to ? (
+        <Link to={to} onClick={onClick} className="hero-glow-btn">
+          {children}
+        </Link>
+      ) : (
+        <button type="button" onClick={onClick} className="hero-glow-btn">
+          {children}
+        </button>
+      )}
     </div>
   );
 }

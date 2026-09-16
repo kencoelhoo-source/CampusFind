@@ -88,9 +88,9 @@ export function ClaimModal({
       onClaimed();
     } catch (err: unknown) {
       if (typeof err === "object" && err && "code" in err && err.code === "23505") {
-        toast.error("You already submitted a claim for this item.");
+        toast.error(isLostItem ? "You already sent a message for this item." : "You already submitted a claim for this item.");
       } else {
-        toast.error(err instanceof Error ? err.message : "Failed to submit claim");
+        toast.error(err instanceof Error ? err.message : isLostItem ? "Failed to send message" : "Failed to submit claim");
       }
     } finally {
       setLoading(false);

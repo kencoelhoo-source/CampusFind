@@ -1,5 +1,6 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Bell, LogOut, Sun, Moon, Plus } from "lucide-react";
@@ -34,6 +35,7 @@ const navItems = [
 
 export function Navbar() {
   const { user, loading, signOut } = useAuth();
+  const { openAuthPrompt } = useAuthPrompt();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -201,11 +203,12 @@ export function Navbar() {
             <>
               <Button
                 size="sm"
-                className={cn("ml-1", overlay && "bg-white text-black hover:bg-white/90")}
+                className={cn("ml-1 gap-1", overlay && "bg-white text-black hover:bg-white/90")}
                 asChild
               >
                 <Link to="/post">
-                  <Plus className="h-3.5 w-3.5" /> Report
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Report</span>
                 </Link>
               </Button>
               <Button
@@ -227,13 +230,29 @@ export function Navbar() {
               {accountMenu}
             </>
           ) : (
-            <Button
-              size="sm"
-              className={cn("ml-2", overlay && "bg-white text-black hover:bg-white/90")}
-              asChild
-            >
-              <Link to="/auth">Sign in</Link>
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn(
+                  "ml-1 h-8 gap-1 rounded-full px-3 text-[13px] font-medium transition-colors duration-200 ease-apple",
+                  overlay
+                    ? "text-white/85 hover:bg-white/15 hover:text-white"
+                    : "text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/[0.08] dark:hover:text-white",
+                )}
+                onClick={() => openAuthPrompt({ actionType: "report", redirectUrl: "/post" })}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Report</span>
+              </Button>
+              <Button
+                size="sm"
+                className={cn("ml-1 h-8 rounded-full px-3.5 text-[13px]", overlay && "bg-white text-black hover:bg-white/90")}
+                asChild
+              >
+                <Link to="/auth">Sign in</Link>
+              </Button>
+            </>
           )}
 
           <Button

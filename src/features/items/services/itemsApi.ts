@@ -52,8 +52,6 @@ export async function fetchBrowseItems(filters: ItemFilters) {
 
   if (filters.status !== "all") {
     rows = rows.filter((item) => item.status === filters.status);
-  } else {
-    rows = rows.filter((item) => item.status === "lost" || item.status === "found" || item.status === "claimed");
   }
   if (filters.category !== "all") {
     rows = rows.filter((item) => item.category === filters.category);

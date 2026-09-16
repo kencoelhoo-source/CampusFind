@@ -23,4 +23,16 @@ describe("item custody copy", () => {
   it("keeps lost copy on last-seen place", () => {
     expect(itemSituation({ status: "lost", location: "Lab Block" })).toBe("Lost · Lab Block");
   });
+
+  it("ignores stale held_where data on lost items", () => {
+    expect(itemSituation({ status: "lost", location: "Lab Block", held_where: "with_me" })).toBe("Lost · Lab Block");
+  });
+
+  it("labels returned lost items as Resolved", () => {
+    expect(itemSituation({ status: "returned", location: "Lab Block" })).toBe("Resolved · Lab Block");
+  });
+
+  it("labels returned found items as Returned", () => {
+    expect(itemSituation({ status: "returned", location: "Canteen", held_where: "at_desk" })).toBe("Returned · Canteen");
+  });
 });

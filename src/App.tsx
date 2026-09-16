@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { RouteSkeleton } from "@/components/common/Skeletons";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthPromptProvider } from "@/contexts/AuthPromptContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Navbar } from "@/components/layout/Navbar";
 import { MobileDock } from "@/components/layout/MobileDock";
@@ -57,7 +58,9 @@ const App = () => (
             <Sonner />
             <NetworkStatusNotifier />
             <BrowserRouter>
-              <AppShell />
+              <AuthPromptProvider>
+                <AppShell />
+              </AuthPromptProvider>
             </BrowserRouter>
           </AuthProvider>
         </ThemeProvider>

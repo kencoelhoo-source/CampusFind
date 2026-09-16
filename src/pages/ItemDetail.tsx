@@ -86,26 +86,53 @@ export default function ItemDetail() {
   const dateLabel = format(new Date(item.date_occurred || item.created_at), "d MMMM yyyy");
   const isOwner = Boolean(user && user.id === item.user_id);
   const who = isOwner ? "You" : poster;
-  const statusWord = STATUS_WORD[item.status] ?? item.status;
-  const nowLabel = custodyLabel(item.held_where, item.held_at, {
-    isOwner,
-    holderName: poster,
-  });
+  const isOriginallyFound = item.status === "found" || Boolean(item.held_where);
+  const statusWord =
+    item.status === "returned"
+      ? (isOriginallyFound ? "Returned" : "Resolved")
+      : STATUS_WORD[item.status] ?? item.status;
+
+  const nowLabel = item.status === "found"
+    ? custodyLabel(item.held_where, item.held_at, {
+        isOwner,
+        holderName: poster,
+      })
+    : null;
+
+  const locationLabel =
+    item.status === "lost" ? "Last seen"
+      : item.status === "found" ? "Found at"
+        : item.held_where ? "Found at"
+          : "Last seen";
+
+  const dateLabelName =
+    item.status === "lost" ? "Date lost"
+      : item.status === "found" ? "Date found"
+        : item.held_where ? "Date found"
+          : "Date lost";
+
   const situation =
     item.status === "found" && nowLabel
       ? `${statusWord} · ${nowLabel}`
-      : item.location
-        ? `${statusWord} in ${item.location}`
-        : statusWord;
-  const atDesk = item.status === "found" && item.held_where === "at_desk" && Boolean(item.held_at);
+      : item.status === "lost" && item.location
+        ? `Lost · Last seen ${item.location}`
+        : item.status === "claimed"
+          ? "Claimed · Handover in progress"
+          : item.status === "returned" && item.location
+            ? `${statusWord} · ${locationLabel} ${item.location}`
+            : item.location
+              ? `${statusWord} · ${item.location}`
+              : statusWord;
+
+  const atDesk = item.status === "found" && item.held_where === "at_desk";
   const canClaim = (item.status === "lost" || item.status === "found") && !atDesk;
   const hero = images[activeImage];
   const actionLabel = item.status === "found" ? "This is mine" : "I found this";
 
   const specs = [
-    item.location ? { label: item.status === "lost" ? "Last seen" : "Found at", value: item.location } : null,
+    item.location ? { label: locationLabel, value: item.location } : null,
     nowLabel ? { label: "Now", value: nowLabel } : null,
-    { label: "Date", value: dateLabel },
+    { label: dateLabelName, value: dateLabel },
     { label: "Type", value: item.category },
     { label: "From", value: who },
   ].filter(Boolean) as { label: string; value: string }[];
@@ -194,7 +221,7 @@ export default function ItemDetail() {
             )}
             {atDesk && (
               <p className="animate-fade-in mt-3 max-w-md text-[14px] leading-relaxed text-muted-foreground" style={{ animationDelay: "130ms" }}>
-                It’s already at the {item.held_at} desk. Ask there — you don’t need to claim it with the poster.
+                It’s already at the {item.held_at || "campus"} desk. Ask there — you don’t need to claim it with the poster.
               </p>
             )}
 
@@ -224,9 +251,20 @@ export default function ItemDetail() {
               )}
               {isOwner && (
                 <p className="text-[14px] text-muted-foreground">
-                  {atDesk
-                    ? `You posted this. People collect it from the ${item.held_at} desk — no claims. Mark it returned in Dashboard when it’s gone.`
-                    : "You posted this. Claims arrive in Dashboard → Inbox."}
+                  {item.status === "returned"
+                    ? (isOriginallyFound ? "You marked this item as returned." : "You marked this listing as resolved.")
+                    : item.status === "claimed"
+                      ? "You accepted a claim for this item. Coordinate handover in Dashboard → Incoming."
+                      : atDesk
+                        ? `You posted this. People collect it from the ${item.held_at || "campus"} desk — no claims. Mark it returned in Dashboard when it’s gone.`
+                        : "You posted this. Claims arrive in Dashboard → Inbox."}
+                </p>
+              )}
+              {!isOwner && !myClaim && (item.status === "claimed" || item.status === "returned") && (
+                <p className="text-[14px] text-muted-foreground">
+                  {item.status === "returned"
+                    ? (isOriginallyFound ? "This item has been returned." : "This lost item was recovered.")
+                    : "A claim has been accepted for this item. Handover is in progress."}
                 </p>
               )}
               {!isOwner && user && myClaim && (

@@ -29,6 +29,7 @@ export function itemSituation(input: {
   isOwner?: boolean;
   holderName?: string | null;
 }) {
+  const isFoundOrCustody = input.status === "found" || Boolean(input.held_where);
   const statusWord =
     input.status === "lost"
       ? "Lost"
@@ -37,9 +38,10 @@ export function itemSituation(input: {
         : input.status === "claimed"
           ? "Claimed"
           : input.status === "returned"
-            ? "Returned"
+            ? (isFoundOrCustody ? "Returned" : "Resolved")
             : input.status;
 
+  // Custody info only makes sense for found items
   if (input.status === "found" && input.held_where === "at_desk" && input.held_at) {
     return `Found · Held at ${input.held_at}`;
   }

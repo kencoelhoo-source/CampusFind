@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { GooeySearchBar } from "@/features/items/components/GooeySearchBar";
@@ -102,16 +103,15 @@ const steps = [
 export default function Index() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { openAuthPrompt } = useAuthPrompt();
   const [mobileAction, setMobileAction] = useState<"lost" | "found">("lost");
 
   const handleMobileActionClick = (type: "lost" | "found") => {
-    if (mobileAction === type) {
-      navigate(user ? `/post?type=${type}` : "/auth");
+    setMobileAction(type);
+    if (user) {
+      navigate(`/post?type=${type}`);
     } else {
-      setMobileAction(type);
-      setTimeout(() => {
-        navigate(user ? `/post?type=${type}` : "/auth");
-      }, 200);
+      openAuthPrompt({ actionType: type, redirectUrl: `/post?type=${type}` });
     }
   };
 
@@ -215,8 +215,22 @@ export default function Index() {
             </button>
           </div>
           <div className="mt-6 hidden animate-fade-in gap-3 md:flex" style={{ animationDelay: "0.24s" }}>
-            <GlowAction to={user ? "/post?type=lost" : "/auth"}>I lost something</GlowAction>
-            <GlowAction to={user ? "/post?type=found" : "/auth"}>I found something</GlowAction>
+            <GlowAction
+              onClick={() => {
+                if (user) navigate("/post?type=lost");
+                else openAuthPrompt({ actionType: "lost", redirectUrl: "/post?type=lost" });
+              }}
+            >
+              I lost something
+            </GlowAction>
+            <GlowAction
+              onClick={() => {
+                if (user) navigate("/post?type=found");
+                else openAuthPrompt({ actionType: "found", redirectUrl: "/post?type=found" });
+              }}
+            >
+              I found something
+            </GlowAction>
           </div>
         </div>
       </section>
@@ -401,8 +415,13 @@ export default function Index() {
               You can still search. Sign in with your SFIT Google account when you're ready to post.
             </p>
             <div className="mt-8 flex justify-center gap-3">
-              <Button asChild>
-                <Link to={user ? "/post" : "/auth"}>{user ? "Report an item" : "Sign in to post"}</Link>
+              <Button
+                onClick={() => {
+                  if (user) navigate("/post");
+                  else openAuthPrompt({ actionType: "report", redirectUrl: "/post" });
+                }}
+              >
+                Report an item
               </Button>
               <Button variant="secondary" className="border border-border/70" asChild>
                 <Link to="/items">Browse anyway</Link>

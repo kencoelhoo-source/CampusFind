@@ -15,8 +15,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format } from "date-fns";
-import { Check, Package, Trash2, RotateCcw, Inbox, Bell } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import { Check, Package, Trash2, RotateCcw, Inbox, Bell, MapPin, ArrowLeft, ArrowRight, ChevronLeft, ChevronDown, ShieldCheck } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
 import { useSfitEmailLock } from "@/hooks/use-sfit-email-lock";
@@ -40,6 +40,13 @@ const STATUS_WORD: Record<DBItem["status"], string> = {
   returned: "Returned",
 };
 
+function itemStatusWord(item: DBItem): string {
+  if (item.status === "returned") {
+    return item.held_where ? "Returned" : "Resolved";
+  }
+  return STATUS_WORD[item.status] ?? item.status;
+}
+
 const STATUS_TONE: Record<DBItem["status"], string> = {
   lost: "text-rose-600 dark:text-rose-400",
   found: "text-campus",
@@ -61,16 +68,30 @@ function tabFromSearch(value: string | null): DashTab {
   return DASH_TABS.includes(value as DashTab) ? (value as DashTab) : "my-items";
 }
 
+function formatRelativeTime(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffHours = (now.getTime() - d.getTime()) / (1000 * 60 * 60);
+    if (diffHours < 24) {
+      return formatDistanceToNow(d, { addSuffix: true });
+    }
+    return format(d, "MMM d, h:mm a");
+  } catch {
+    return "";
+  }
+}
+
 async function fetchDashboardData(userId: string): Promise<DashboardData> {
   const [itemsRes, claimsRes, initialNotifsRes] = await Promise.all([
     supabase
       .from("items")
-      .select("id, title, status, created_at, user_id, location, category")
+      .select("id, title, status, created_at, user_id, location, category, held_where, held_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
     supabase
       .from("claims")
-      .select("id, item_id, user_id, message, status, meeting_details, meeting_requested, items(title, status, user_id)")
+      .select("id, item_id, user_id, message, status, meeting_details, meeting_requested, created_at, items(id, title, status, user_id, category, location)")
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
     supabase
@@ -96,32 +117,63 @@ async function fetchDashboardData(userId: string): Promise<DashboardData> {
   }
 
   const myItems = (itemsRes.data as unknown as DBItem[]) || [];
+  const myClaims = (claimsRes.data as unknown as DBClaim[]) || [];
   const itemIds = myItems.map((item) => item.id);
 
   let incomingClaims: DBClaim[] = [];
   if (itemIds.length > 0) {
     const incomingRes = await supabase
       .from("claims")
-      .select("id, item_id, user_id, message, status, meeting_details, meeting_requested")
+      .select("id, item_id, user_id, message, status, meeting_details, meeting_requested, created_at")
       .in("item_id", itemIds)
       .order("created_at", { ascending: false });
     if (incomingRes.error) throw incomingRes.error;
-    const titleById = new Map(myItems.map((item) => [item.id, item.title]));
-    incomingClaims = ((incomingRes.data as unknown as DBClaim[]) || []).map((claim) => ({
-      ...claim,
-      items: { title: titleById.get(claim.item_id) || "Item", user_id: userId },
-    }));
+    const itemById = new Map(myItems.map((item) => [item.id, item]));
+    incomingClaims = ((incomingRes.data as unknown as DBClaim[]) || []).map((claim) => {
+      const foundItem = itemById.get(claim.item_id);
+      return {
+        ...claim,
+        items: foundItem
+          ? {
+              id: foundItem.id,
+              title: foundItem.title,
+              status: foundItem.status,
+              user_id: userId,
+              category: foundItem.category,
+              location: foundItem.location,
+              image_url: foundItem.image_url,
+            }
+          : { title: "Item", user_id: userId },
+      };
+    });
   }
 
-  const imageIds = myItems.map((item) => item.id);
-  if (imageIds.length > 0) {
-    const { data: images } = await supabase.from("item_images").select("item_id, url").in("item_id", imageIds);
+  const allItemIds = Array.from(
+    new Set([
+      ...myItems.map((item) => item.id),
+      ...myClaims.map((claim) => claim.item_id),
+      ...incomingClaims.map((claim) => claim.item_id),
+    ])
+  ).filter(Boolean);
+
+  if (allItemIds.length > 0) {
+    const { data: images } = await supabase.from("item_images").select("item_id, url").in("item_id", allItemIds);
     const imageMap = new Map<string, string>();
     images?.forEach((image) => {
       if (!imageMap.has(image.item_id)) imageMap.set(image.item_id, image.url);
     });
     myItems.forEach((item) => {
       item.image_url = imageMap.get(item.id) || null;
+    });
+    myClaims.forEach((claim) => {
+      if (claim.items) {
+        claim.items.image_url = imageMap.get(claim.item_id) || null;
+      }
+    });
+    incomingClaims.forEach((claim) => {
+      if (claim.items && !claim.items.image_url) {
+        claim.items.image_url = imageMap.get(claim.item_id) || null;
+      }
     });
   }
 
@@ -137,7 +189,7 @@ async function fetchDashboardData(userId: string): Promise<DashboardData> {
 
   return {
     myItems,
-    myClaims: (claimsRes.data as unknown as DBClaim[]) || [],
+    myClaims,
     notifications: notificationRows,
     incomingClaims,
   };
@@ -155,6 +207,11 @@ export default function Dashboard() {
   const [desktopAlertsOn, setDesktopAlertsOn] = useState(
     () => typeof Notification !== "undefined" && Notification.permission === "granted",
   );
+  const [dismissedDesktopAlertsPrompt, setDismissedDesktopAlertsPrompt] = useState(false);
+  const [inboxFilter, setInboxFilter] = useState<"all" | "pending" | "resolved">("all");
+  const [notifFilter, setNotifFilter] = useState<"all" | "unread">("all");
+  const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["dashboard", user?.id],
@@ -178,6 +235,20 @@ export default function Dashboard() {
   const unreadCount = notifications.filter((notification) => !notification.read).length;
   const pendingInbox = incomingClaims.filter((claim) => claim.status === "pending").length;
 
+  const filteredIncoming = incomingClaims.filter((claim) => {
+    if (inboxFilter === "pending") return claim.status === "pending";
+    if (inboxFilter === "resolved") return claim.status !== "pending";
+    return true;
+  });
+
+  const activeSelectedClaim =
+    filteredIncoming.find((c) => c.id === selectedClaimId) || null;
+
+  const filteredNotifications = notifications.filter((notification) => {
+    if (notifFilter === "unread") return !notification.read;
+    return true;
+  });
+
   const refreshQueries = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["dashboard", user.id] }),
@@ -194,6 +265,23 @@ export default function Dashboard() {
       toast.error(`Failed to update notification: ${error.message}`);
       return;
     }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["dashboard", user.id] }),
+      queryClient.invalidateQueries({ queryKey: ["unread-notifications-count", user.id] }),
+    ]);
+  };
+
+  const markAllNotifsRead = async () => {
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", user.id)
+      .eq("read", false);
+    if (error) {
+      toast.error(`Could not update alerts: ${error.message}`);
+      return;
+    }
+    toast.success("All alerts marked as read");
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["dashboard", user.id] }),
       queryClient.invalidateQueries({ queryKey: ["unread-notifications-count", user.id] }),
@@ -223,7 +311,12 @@ export default function Dashboard() {
   };
 
   const setItemStatus = async (id: string, status: DBItem["status"], successMsg: string) => {
-    const { error } = await supabase.from("items").update({ status: status as never }).eq("id", id);
+    const payload: Record<string, unknown> = { status };
+    if (status === "lost") {
+      payload.held_where = null;
+      payload.held_at = null;
+    }
+    const { error } = await supabase.from("items").update(payload as never).eq("id", id);
     if (error) {
       toast.error(`Failed to update item: ${error.message}`);
       return;
@@ -403,9 +496,9 @@ export default function Dashboard() {
           const next = tabFromSearch(value);
           setSearchParams(next === "my-items" ? {} : { tab: next }, { replace: true });
         }}
-        className="mt-8"
+        className="mt-6 sm:mt-7"
       >
-        <div className="sticky top-14 z-30 py-3">
+        <div className="sticky top-14 z-30 py-2 sm:py-2.5">
           <TabsList className="grid w-full grid-cols-4 sm:inline-flex sm:w-auto sm:min-w-[440px]">
             <TabsTrigger value="my-items" className="px-2 text-[12px] sm:px-4 sm:text-[13px]">
               <span>Posted</span>
@@ -434,7 +527,9 @@ export default function Dashboard() {
             <TabsTrigger value="notifications" className="px-2 text-[12px] sm:px-4 sm:text-[13px]">
               <span>Alerts</span>
               {unreadCount > 0 && (
-                <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-destructive" />
+                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive/15 px-1 text-[10.5px] font-semibold tabular-nums text-destructive dark:bg-destructive/25 dark:text-red-400">
+                  {unreadCount}
+                </span>
               )}
             </TabsTrigger>
           </TabsList>
@@ -478,22 +573,19 @@ export default function Dashboard() {
                     Returned
                   </Button>
                 ) : item.status === "returned" ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button size="sm" variant="secondary" className="h-9 w-full md:w-auto border border-border/70">
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        Reopen
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setItemStatus(item.id, "lost", "Reopened as lost")}>
-                        Reopen as lost
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setItemStatus(item.id, "found", "Reopened as found")}>
-                        Reopen as found
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-9 w-full md:w-auto border border-border/70"
+                    onClick={() =>
+                      item.held_where
+                        ? setItemStatus(item.id, "found", "Reopened as found")
+                        : setItemStatus(item.id, "lost", "Reopened as lost")
+                    }
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    {item.held_where ? "Reopen as found" : "Reopen as lost"}
+                  </Button>
                 ) : null;
 
               return (
@@ -515,7 +607,7 @@ export default function Dashboard() {
                     <Link to={`/items/${item.id}`} className="min-w-0 flex-1">
                       <h2 className="truncate font-display text-[1.15rem] font-semibold tracking-tight">{item.title}</h2>
                       <p className="mt-1 text-[13px] text-muted-foreground">
-                        <span className={STATUS_TONE[item.status]}>{STATUS_WORD[item.status]}</span>
+                        <span className={STATUS_TONE[item.status]}>{itemStatusWord(item)}</span>
                         <span> · {format(new Date(item.created_at), "d MMM yyyy")}</span>
                       </p>
                     </Link>
@@ -549,9 +641,11 @@ export default function Dashboard() {
           )}
         </TabsContent>
 
-        <TabsContent value="my-claims" className="mt-5 space-y-3">
+        <TabsContent value="my-claims" className="mt-5">
           {isLoading ? (
-            <SkeletonList />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+              <SkeletonList />
+            </div>
           ) : myClaims.length === 0 ? (
             <EmptyState
               icon={<Inbox className="h-6 w-6 text-indigo-500 dark:text-indigo-400" strokeWidth={1.75} />}
@@ -564,210 +658,318 @@ export default function Dashboard() {
               }
             />
           ) : (
-            myClaims.map((claim) => (
-              <article key={claim.id} className="tile p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="min-w-0 break-words font-display text-[1.1rem] font-semibold tracking-tight">
-                    <Link to={`/items/${claim.item_id}`} className="hover:underline">
-                      {claim.items?.title || "Item"}
-                    </Link>
-                  </h2>
-                  <StatusChip status={claim.status} />
-                </div>
-                {claim.message && (
-                  <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{claim.message}</p>
-                )}
-
-                {claim.status === "pending" && (
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <p className="text-[13px] text-muted-foreground">Waiting for the poster to reply.</p>
-                    <Button size="sm" variant="secondary" className="h-8 border border-border/70" onClick={() => void withdrawClaim(claim.id)}>
-                      Withdraw
-                    </Button>
-                  </div>
-                )}
-                {claim.status === "approved" && (
-                  <MeetupBlock
-                    claim={claim}
-                    editing={editingMeetupId === claim.id}
-                    onEdit={() => setEditingMeetupId(claim.id)}
-                    onCancel={() => setEditingMeetupId(null)}
-                    onSave={async (meetup) => {
-                      await saveMeetup(claim.id, meetup);
-                      setEditingMeetupId(null);
-                    }}
-                  />
-                )}
-                {claim.status === "rejected" && (
-                  <p className="mt-4 text-[13px] text-muted-foreground">Declined. You can look for another listing.</p>
-                )}
-                {claim.status === "withdrawn" && (
-                  <p className="mt-4 text-[13px] text-muted-foreground">You withdrew this claim.</p>
-                )}
-              </article>
-            ))
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+              {myClaims.map((claim) => (
+                <MyClaimCard
+                  key={claim.id}
+                  claim={claim}
+                  editing={editingMeetupId === claim.id}
+                  onEdit={() => setEditingMeetupId(claim.id)}
+                  onCancel={() => setEditingMeetupId(null)}
+                  onSaveMeetup={async (meetup) => {
+                    await saveMeetup(claim.id, meetup);
+                    setEditingMeetupId(null);
+                  }}
+                  onWithdraw={(id) => void withdrawClaim(id)}
+                />
+              ))}
+            </div>
           )}
         </TabsContent>
 
-        <TabsContent value="incoming" className="mt-5 space-y-3">
+        <TabsContent value="incoming" className="mt-3 sm:mt-4">
           {isLoading ? (
-            <SkeletonList />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+              <SkeletonList />
+            </div>
           ) : incomingClaims.length === 0 ? (
             <EmptyState
-              icon={<Inbox className="h-6 w-6 text-sky-500 dark:text-sky-400" strokeWidth={1.75} />}
-              title="Inbox is empty"
-              text="When someone claims one of your listings, you’ll see it here."
+              icon={<Inbox className="h-7 w-7 text-sky-500/80 dark:text-sky-400/80" strokeWidth={1.5} />}
+              title="Inbox is clear"
+              text="When someone claims one of your listings or sends a verification note, it will arrive here."
             />
           ) : (
-            incomingClaims.map((claim) => (
-              <article key={claim.id} className="tile p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="break-words font-display text-[1.1rem] font-semibold tracking-tight">
-                      <Link to={`/items/${claim.item_id}`} className="hover:underline">
-                        {claim.items?.title}
-                      </Link>
-                    </h2>
-                    <p className="mt-0.5 text-[13px] text-muted-foreground">
-                      From {claim.profiles?.full_name || "an SFIT member"}
-                    </p>
+            <div
+              id="inbox-console-container"
+              className="rounded-lg border border-black/[0.08] dark:border-white/[0.08] bg-card overflow-hidden flex flex-col lg:flex-row scroll-mt-20 h-auto lg:h-[620px]"
+            >
+              {/* Left Panel: Triage Queue List */}
+              <div
+                className={cn(
+                  "w-full lg:w-[340px] shrink-0 border-black/[0.08] dark:border-white/[0.08] flex flex-col bg-[#fbfbfd] dark:bg-[#161618]",
+                  mobileDetailOpen ? "hidden lg:flex" : "flex",
+                  "lg:border-r lg:h-full"
+                )}
+              >
+                {/* Queue Header & Segmented Filter */}
+                <div className="h-14 px-4 border-b border-black/[0.08] dark:border-white/[0.08] flex items-center justify-between gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[13px] font-semibold tracking-tight text-foreground">Claims</span>
+                    <span className="text-[11px] text-muted-foreground font-medium">({incomingClaims.length})</span>
                   </div>
-                  {claim.status !== "pending" && <StatusChip status={claim.status} />}
+
+                  {/* Smooth Animated Segmented Control */}
+                  <div className="relative flex items-center p-[3px] rounded-full bg-black/[0.04] dark:bg-white/[0.04] w-[176px] h-[28px] select-none">
+                    {/* Absolute track container perfectly bounded by the padding */}
+                    <div className="absolute inset-[3px] pointer-events-none flex">
+                      <div
+                        className="h-full w-1/3 bg-white dark:bg-[#2c2c30] rounded-full shadow-[0_1px_2.5px_rgba(0,0,0,0.1),0_0_0_0.5px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4),0_0_0_0.5px_rgba(255,255,255,0.06)] transition-transform duration-[350ms] ease-[cubic-bezier(0.2,0.9,0.4,1)]"
+                        style={{
+                          transform: `translateX(${
+                            inboxFilter === "all" ? "0%" : inboxFilter === "pending" ? "100%" : "200%"
+                          })`,
+                        }}
+                      />
+                    </div>
+                    
+                    {(["all", "pending", "resolved"] as const).map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setInboxFilter(f)}
+                        className={cn(
+                          "relative z-10 flex-1 flex items-center justify-center h-full text-[11px] font-medium transition-colors duration-[350ms] capitalize rounded-full select-none",
+                          inboxFilter === f
+                            ? "text-foreground dark:text-white"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {f === "all" ? "All" : f === "pending" ? "Review" : "Done"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <p className="mt-3 text-[15px] leading-relaxed">“{claim.message}”</p>
+                {/* Scrollable Queue Feed */}
+                {filteredIncoming.length === 0 ? (
+                  <div className="p-8 text-center my-auto">
+                    <p className="text-[12px] text-muted-foreground">
+                      {inboxFilter === "pending"
+                        ? "No incoming claims awaiting review."
+                        : "No resolved claims in history."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-y-auto flex-1">
+                    {filteredIncoming.map((claim) => {
+                      const isSelected = activeSelectedClaim?.id === claim.id;
+                      return (
+                        <button
+                          key={claim.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedClaimId(claim.id);
+                            setMobileDetailOpen(true);
+                            if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                              document.getElementById("inbox-console-container")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }
+                          }}
+                          className={cn(
+                            "w-full text-left p-4 transition-colors duration-150 relative block group border-b border-black/[0.06] dark:border-white/[0.06]",
+                            isSelected
+                              ? "bg-black/[0.03] dark:bg-white/[0.04]"
+                              : "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
+                          )}
+                        >
+                          <div className="flex items-baseline justify-between gap-2 min-w-0 mb-1">
+                            <span className="font-semibold text-[14px] text-foreground truncate min-w-0 pr-2 block">
+                              {claim.profiles?.full_name || "SFIT Member"}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground shrink-0 font-normal">
+                              {claim.created_at ? formatRelativeTime(claim.created_at) : ""}
+                            </span>
+                          </div>
+                          <p className="text-[13px] font-medium text-foreground/80 truncate pr-2 mb-1">
+                            {claim.items?.title || "Item"}
+                          </p>
+                          <p className="text-[12px] text-muted-foreground line-clamp-1 pr-2 mb-3">
+                            {claim.message || "No verification note provided"}
+                          </p>
+                          <div className="flex items-center justify-between text-[11.5px]">
+                            <span
+                              className={cn(
+                                "font-medium",
+                                claim.status === "pending" && "text-foreground font-medium",
+                                claim.status === "approved" && "text-foreground font-medium",
+                                (claim.status === "rejected" || claim.status === "withdrawn") && "text-muted-foreground"
+                              )}
+                            >
+                              {claim.status === "pending" ? "Needs review" : claim.status === "approved" ? "Handover active" : "Resolved"}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground/80 truncate max-w-[130px]">
+                              {claim.items?.location || "SFIT"}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
-                {claim.status === "pending" && (
-                  <form
-                    className="mt-4 space-y-3"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      const meetup = new FormData(event.currentTarget).get("meetup") as string;
-                      resolveIncoming(claim.id, claim.item_id, "approved", meetup);
-                    }}
-                  >
-                    <textarea
-                      name="meetup"
-                      placeholder="Public pickup place — Library counter, daytime"
-                      className="w-full rounded-2xl border border-border/70 bg-background px-3 py-2.5 text-[14px] outline-none focus:ring-2 focus:ring-ring/40"
-                      rows={2}
+              {/* Right Panel: Focused Inspector & Handover Canvas */}
+              <div
+                className={cn(
+                  "flex-1 min-w-0 flex flex-col bg-white dark:bg-[#1c1c1e]",
+                  mobileDetailOpen ? "flex" : "hidden lg:flex",
+                  "lg:h-full"
+                )}
+              >
+                {activeSelectedClaim ? (
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <ClaimInspectionCanvas
+                      claim={activeSelectedClaim}
+                      editing={editingMeetupId === activeSelectedClaim.id}
+                      onEdit={() => setEditingMeetupId(activeSelectedClaim.id)}
+                      onCancel={() => setEditingMeetupId(null)}
+                      onSaveMeetup={async (meetup) => {
+                        await saveMeetup(activeSelectedClaim.id, meetup);
+                        setEditingMeetupId(null);
+                      }}
+                      onResolve={resolveIncoming}
+                      onBack={() => {
+                        setMobileDetailOpen(false);
+                        setSelectedClaimId(null);
+                        if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                          document.getElementById("inbox-console-container")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }
+                      }}
                     />
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button size="sm" className="h-10" type="submit">
-                        Accept
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-10 border border-border/70"
-                        type="button"
-                        onClick={() => resolveIncoming(claim.id, claim.item_id, "rejected")}
-                      >
-                        Decline
-                      </Button>
+                  </div>
+                ) : (
+                  <div className="flex h-full min-h-[420px] flex-col items-center justify-center text-center p-8">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.06] text-muted-foreground/70 mb-3">
+                      <Inbox className="h-5 w-5" strokeWidth={1.5} />
                     </div>
-                  </form>
+                    <p className="text-[14px] font-semibold text-foreground">Select a claim to review</p>
+                    <p className="mt-1 max-w-xs text-[12px] text-muted-foreground">
+                      Choose any pending or resolved claim from the queue to inspect details and coordinate handover.
+                    </p>
+                  </div>
                 )}
-
-                {claim.status === "approved" && (
-                  <MeetupBlock
-                    claim={claim}
-                    editing={editingMeetupId === claim.id}
-                    onEdit={() => setEditingMeetupId(claim.id)}
-                    onCancel={() => setEditingMeetupId(null)}
-                    onSave={async (meetup) => {
-                      await saveMeetup(claim.id, meetup);
-                      setEditingMeetupId(null);
-                    }}
-                  />
-                )}
-                {claim.status === "withdrawn" && (
-                  <p className="mt-4 text-[13px] text-muted-foreground">This student withdrew the claim.</p>
-                )}
-              </article>
-            ))
+              </div>
+            </div>
           )}
         </TabsContent>
 
-        <TabsContent value="notifications" className="mt-5 space-y-3">
-          {!desktopAlertsOn && (
-            <div className="tile flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-              <div className="min-w-0">
-                <p className="font-medium tracking-tight">Turn on desktop alerts</p>
-                <p className="mt-0.5 text-[13px] text-muted-foreground">Get a banner when this tab is in the background.</p>
+        <TabsContent value="notifications" className="mt-5">
+          {notifications.length > 0 && (
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[13px] font-medium text-foreground">Alerts & activity</span>
+                {unreadCount > 0 && (
+                  <span className="rounded-md bg-campus/10 px-1.5 py-0.5 text-[11px] font-semibold text-campus dark:bg-campus/20">
+                    {unreadCount} unread
+                  </span>
+                )}
               </div>
-              <Button className="h-10 shrink-0 rounded-full px-5" onClick={() => void enableDesktopAlerts()}>
-                Turn on
-              </Button>
+
+              <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+                {unreadCount > 0 && unreadCount < notifications.length && (
+                  <div className="inline-flex items-center rounded-xl border border-border/50 bg-secondary/30 p-0.5 dark:border-white/[0.06] dark:bg-white/[0.03]">
+                    <button
+                      type="button"
+                      onClick={() => setNotifFilter("all")}
+                      className={cn(
+                        "rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition-all",
+                        notifFilter === "all"
+                          ? "bg-background text-foreground shadow-sm dark:bg-[#1e1e24] dark:text-white"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      All ({notifications.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNotifFilter("unread")}
+                      className={cn(
+                        "rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition-all",
+                        notifFilter === "unread"
+                          ? "bg-background text-foreground shadow-sm dark:bg-[#1e1e24] dark:text-white"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      Unread ({unreadCount})
+                    </button>
+                  </div>
+                )}
+
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void markAllNotifsRead()}
+                    className="text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Mark all read
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void clearAllAlerts()}
+                  className="text-[12px] font-medium text-muted-foreground transition-colors hover:text-destructive"
+                >
+                  Clear all
+                </button>
+              </div>
             </div>
           )}
+
+          {!desktopAlertsOn && !dismissedDesktopAlertsPrompt && (
+            <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/60 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5 dark:border-white/[0.08] dark:bg-[#151518]/90">
+              <div className="flex items-start gap-3 min-w-0">
+                <Bell className="h-4 w-4 text-campus shrink-0 mt-0.5" strokeWidth={2} />
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-medium tracking-tight text-foreground">Enable desktop alerts</p>
+                  <p className="mt-0.5 text-[12px] text-muted-foreground">
+                    Get instant browser notifications when your listings are claimed or pickup details are shared.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setDismissedDesktopAlertsPrompt(true)}
+                  className="h-8 rounded-lg px-2.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Dismiss
+                </button>
+                <Button
+                  size="sm"
+                  className="h-8 rounded-lg px-3.5 text-[12px] font-medium"
+                  onClick={() => void enableDesktopAlerts()}
+                >
+                  Turn on
+                </Button>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
-            <SkeletonList />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
+              <SkeletonList />
+            </div>
           ) : notifications.length === 0 ? (
             <EmptyState
-              icon={<Bell className="h-6 w-6 text-amber-500 dark:text-amber-300" strokeWidth={1.75} />}
+              icon={<Bell className="h-7 w-7 text-muted-foreground/60" strokeWidth={1.5} />}
               title="No alerts"
-              text="You’ll get a note here when someone claims a listing, a claim is accepted or declined, or a possible match is posted."
+              text="You’ll get notes here when someone claims a listing, a pickup is arranged, or a match is posted."
             />
-          ) : (
-            <>
-            {notifications.map((notification) => {
-              const href = hrefForNotification(notification);
-              const view = presentNotification(notification);
-              return (
-                <article
-                  key={notification.id}
-                  className="tile w-full min-w-0 p-4 sm:p-5"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                      {view.kicker}
-                    </p>
-                    <span className="flex shrink-0 items-center gap-2">
-                      {!notification.read && (
-                        <button
-                          type="button"
-                          onClick={() => markNotifRead(notification.id)}
-                          className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-                        >
-                          Read
-                        </button>
-                      )}
-                      <span
-                        className={cn(
-                          "h-1.5 w-1.5 rounded-full",
-                          notification.read ? "bg-transparent" : "bg-primary",
-                        )}
-                        aria-hidden
-                      />
-                    </span>
-                  </div>
-                  <Link
-                    to={href}
-                    className="mt-1.5 block w-full min-w-0"
-                    onClick={() => {
-                      if (!notification.read) void markNotifRead(notification.id);
-                    }}
-                  >
-                    <h2 className="w-full min-w-0 font-display text-[1.05rem] font-semibold tracking-tight hover:underline [overflow-wrap:anywhere]">
-                      {view.title}
-                    </h2>
-                  </Link>
-                  <p className="mt-1 w-full text-[14px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-                    {view.body}
-                  </p>
-                  <p className="mt-2 text-[12px] text-muted-foreground">
-                    {format(new Date(notification.created_at), "d MMM, h:mm a")}
-                  </p>
-                </article>
-              );
-            })}
-            <div className="flex justify-center pt-2 text-[13px] text-muted-foreground">
-              <button type="button" className="hover:text-foreground" onClick={() => void clearAllAlerts()}>
-                Clear all
-              </button>
+          ) : filteredNotifications.length === 0 ? (
+            <div className="rounded-2xl border border-border/50 bg-card/40 py-12 text-center dark:border-white/[0.06] dark:bg-white/[0.015]">
+              <p className="text-[13.5px] text-muted-foreground">
+                All caught up. No unread notifications.
+              </p>
             </div>
-            </>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
+              {filteredNotifications.map((notification) => (
+                <NotificationCard
+                  key={notification.id}
+                  notification={notification}
+                  onMarkRead={(id) => void markNotifRead(id)}
+                />
+              ))}
+            </div>
           )}
         </TabsContent>
       </Tabs>
@@ -850,18 +1052,25 @@ function SkeletonList() {
   );
 }
 
-function StatusChip({ status }: { status: DBClaim["status"] }) {
+function ClaimStatusIndicator({
+  status,
+  isIncoming = false,
+}: {
+  status: DBClaim["status"];
+  isIncoming?: boolean;
+}) {
+  const textColor = {
+    pending: "text-foreground",
+    approved: "text-foreground",
+    rejected: "text-muted-foreground",
+    withdrawn: "text-muted-foreground",
+  }[status];
+
+  const label = isIncoming && status === "pending" ? "Needs review" : CLAIM_WORD[status];
+
   return (
-    <span
-      className={cn(
-        "shrink-0 rounded-full px-2.5 py-1 text-[12px] font-medium",
-        status === "pending" && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-        status === "approved" && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-        status === "rejected" && "bg-muted text-muted-foreground",
-        status === "withdrawn" && "bg-muted text-muted-foreground",
-      )}
-    >
-      {CLAIM_WORD[status]}
+    <span className={cn("text-[12.5px] font-medium tracking-tight shrink-0 select-none", textColor)}>
+      {label}
     </span>
   );
 }
@@ -883,47 +1092,501 @@ function MeetupBlock({
 
   if (!editing) {
     return (
-      <div className="mt-4 rounded-2xl bg-muted/50 px-4 py-3">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Pickup place</p>
-        <p className="mt-1 text-[14px] leading-relaxed text-foreground">
+      <div className="mt-4 border-t border-black/[0.05] dark:border-white/[0.05] pt-4">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <span className="text-[12.5px] font-medium">
+              Handover location
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="text-[12px] font-medium text-foreground hover:underline"
+          >
+            {note ? "Change" : "Specify location"}
+          </button>
+        </div>
+        <p className="text-[13px] leading-relaxed text-foreground">
           {note || "Use a public campus place — library, canteen, or security."}
         </p>
-        <button
-          type="button"
-          onClick={onEdit}
-          className="mt-2 text-[13px] font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
-          {note ? "Change" : "Add a place"}
-        </button>
       </div>
     );
   }
 
   return (
     <form
-      className="mt-4 space-y-2"
+      className="mt-4 border-t border-black/[0.05] dark:border-white/[0.05] pt-4"
       onSubmit={(event) => {
         event.preventDefault();
         const meetup = new FormData(event.currentTarget).get("meetup") as string;
         void onSave(meetup);
       }}
     >
-      <textarea
+      <div className="flex items-center gap-2 text-muted-foreground mb-3">
+        <span className="text-[12.5px] font-medium">
+          Set handover location
+        </span>
+      </div>
+      <input
+        type="text"
         name="meetup"
         defaultValue={note || ""}
-        placeholder="Library counter, daytime"
-        className="w-full rounded-2xl border border-border/70 bg-background px-3 py-2.5 text-[14px] outline-none focus:ring-2 focus:ring-ring/40"
-        rows={2}
+        placeholder="e.g. Library front desk, lunchtime"
+        className="w-full rounded-md border border-black/[0.1] dark:border-white/[0.1] bg-transparent px-3 py-2 text-[13px] outline-none transition-all placeholder:text-muted-foreground/50 focus:border-foreground"
       />
-      <div className="flex gap-2">
-        <Button size="sm" className="h-9" type="submit">
-          Save place
-        </Button>
-        <Button size="sm" type="button" variant="secondary" className="h-9 border border-border/70" onClick={onCancel}>
+      <div className="mt-3 flex items-center justify-end gap-2">
+        <Button
+          size="sm"
+          type="button"
+          variant="ghost"
+          className="h-8 rounded-md text-[12px] hover:bg-black/5 dark:hover:bg-white/5 text-foreground"
+          onClick={onCancel}
+        >
           Cancel
+        </Button>
+        <Button size="sm" className="h-8 rounded-md text-[12px] px-3.5 bg-foreground text-background shadow-sm hover:bg-foreground/90" type="submit">
+          Save
         </Button>
       </div>
     </form>
+  );
+}
+
+function MyClaimCard({
+  claim,
+  editing,
+  onEdit,
+  onCancel,
+  onSaveMeetup,
+  onWithdraw,
+}: {
+  claim: DBClaim;
+  editing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSaveMeetup: (meetup: string) => Promise<void> | void;
+  onWithdraw: (id: string) => void;
+}) {
+  const formattedDate = claim.created_at
+    ? (() => {
+        try {
+          return format(new Date(claim.created_at), "MMM d, yyyy");
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+
+  return (
+    <article className="flex flex-col justify-between rounded-lg border border-black/[0.08] dark:border-white/[0.08] bg-card p-5 transition-all">
+      <div>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <Link
+              to={`/items/${claim.item_id}`}
+              className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-black/[0.05] dark:border-white/[0.05] bg-muted/60 transition-opacity hover:opacity-80"
+            >
+              {claim.items?.image_url ? (
+                <img src={claim.items.image_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-secondary/40">
+                  <Package className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+                </div>
+              )}
+            </Link>
+
+            <div className="min-w-0">
+              <h2 className="truncate text-[15px] font-medium tracking-tight">
+                <Link
+                  to={`/items/${claim.item_id}`}
+                  className="hover:underline transition-colors"
+                >
+                  {claim.items?.title || "Item"}
+                </Link>
+              </h2>
+              <p className="mt-0.5 text-[12.5px] text-muted-foreground truncate">
+                {formattedDate ? `Claimed ${formattedDate}` : "Active claim"}
+                {claim.items?.location && ` · ${claim.items.location}`}
+              </p>
+            </div>
+          </div>
+
+          <ClaimStatusIndicator status={claim.status} />
+        </div>
+
+        {/* Verification Proof Memo Box */}
+        {claim.message && (
+          <div className="mb-4">
+            <p className="text-[12.5px] font-medium text-muted-foreground mb-1.5">
+              Proof note
+            </p>
+            <div className="border-l-2 border-black/[0.08] dark:border-white/[0.08] pl-3 py-1">
+              <p className="text-[13px] leading-relaxed text-foreground">
+                {claim.message}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Handover Location Block if Approved */}
+        {claim.status === "approved" && (
+          <MeetupBlock
+            claim={claim}
+            editing={editing}
+            onEdit={onEdit}
+            onCancel={onCancel}
+            onSave={onSaveMeetup}
+          />
+        )}
+      </div>
+
+      <div className="mt-5 flex items-center justify-between border-t border-black/[0.05] dark:border-white/[0.05] pt-4 gap-2">
+        <div className="text-[12.5px] text-muted-foreground truncate">
+          {claim.status === "pending" && "Awaiting response from poster"}
+          {claim.status === "approved" && (
+            <span className="text-foreground font-medium">
+              Ready for campus collection
+            </span>
+          )}
+          {claim.status === "rejected" && "Claim was declined"}
+          {claim.status === "withdrawn" && "You withdrew this claim"}
+        </div>
+
+        <div>
+          {claim.status === "pending" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 rounded-md text-[12.5px] text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors px-3"
+              onClick={() => onWithdraw(claim.id)}
+            >
+              Withdraw
+            </Button>
+          )}
+          {claim.status === "approved" && (
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-md border-black/[0.1] dark:border-white/[0.1] text-[12.5px] px-3 shadow-sm"
+            >
+              <Link to={`/items/${claim.item_id}`}>View listing</Link>
+            </Button>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function getInitials(name: string): string {
+  if (!name) return "SF";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function ClaimInspectionCanvas({
+  claim,
+  editing,
+  onEdit,
+  onCancel,
+  onSaveMeetup,
+  onResolve,
+  onBack,
+}: {
+  claim: DBClaim;
+  editing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSaveMeetup: (meetup: string) => Promise<void> | void;
+  onResolve: (claimId: string, itemId: string, status: "approved" | "rejected", meetup?: string) => void;
+  onBack?: () => void;
+}) {
+  const [meetupInput, setMeetupInput] = useState("");
+  const formattedRelative = claim.created_at ? formatRelativeTime(claim.created_at) : null;
+  const claimantName = claim.profiles?.full_name || "SFIT Member";
+
+  return (
+    <div className="flex flex-col h-full min-h-0 bg-white dark:bg-[#161618]">
+      {/* 56px Top Header Bar: Continuous horizontal baseline */}
+      <div className="h-14 px-4 sm:px-6 border-b border-black/[0.05] dark:border-white/[0.05] flex items-center justify-between gap-3 shrink-0 bg-white/80 dark:bg-[#161618]/80 backdrop-blur-md">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="lg:hidden inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground active:opacity-60 transition-opacity -ml-1 py-1 border-0 bg-transparent p-0 shadow-none"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Claims</span>
+            </button>
+          )}
+
+          <div className="hidden lg:flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+            <span>Verification review</span>
+          </div>
+        </div>
+
+        {/* Pure Typographic Status Chip */}
+        <div className="shrink-0 text-right">
+          <span className={cn(
+            "text-[12.5px] font-medium",
+            claim.status === "pending" && "text-foreground",
+            claim.status === "approved" && "text-foreground",
+            (claim.status === "rejected" || claim.status === "withdrawn") && "text-muted-foreground"
+          )}>
+            Status: {claim.status === "pending" ? "Pending" : claim.status === "approved" ? "Handover active" : claim.status === "rejected" ? "Declined" : "Withdrawn"}
+          </span>
+        </div>
+      </div>
+
+      {/* Main Inspection Canvas Body: Continuous Flow */}
+      <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-6 flex flex-col gap-5">
+        
+        {/* SECTION A: Claimant Profile & Target Listing */}
+        <div>
+          <div className="flex flex-col mb-5">
+            <h3 className="font-medium text-[15px] text-foreground tracking-tight">
+              {claimantName}
+            </h3>
+            <p className="text-[13px] text-muted-foreground mt-0.5">
+              SFIT Student {formattedRelative ? `· Filed ${formattedRelative}` : ""}
+            </p>
+          </div>
+
+          <div className="flex flex-col rounded-lg bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06] overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.06]">
+              <span className="text-[13px] text-muted-foreground w-16 shrink-0">Item</span>
+              <span className="text-[13px] font-medium text-foreground truncate">{claim.items?.title || "Item"}</span>
+              <Link
+                to={`/items/${claim.item_id}`}
+                className="text-[12px] text-muted-foreground hover:text-foreground hover:underline ml-auto shrink-0 transition-colors inline-flex items-center gap-0.5"
+              >
+                View <span className="text-[10px]">↗</span>
+              </Link>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-3">
+              <span className="text-[13px] text-muted-foreground w-16 shrink-0">Location</span>
+              <span className="text-[13px] font-medium text-foreground truncate">{claim.items?.location || "SFIT Campus"}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION B: Verification Statement */}
+        <div>
+          <div className="rounded-lg bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06] px-4 py-3">
+            <p className="text-[12px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">
+              Note from claimant
+            </p>
+            <p className="text-[13.5px] leading-relaxed text-foreground/90 whitespace-pre-wrap break-words">
+              {claim.message || <span className="italic text-muted-foreground">No verification details provided.</span>}
+            </p>
+          </div>
+        </div>
+
+        {/* SECTION C: Decision Console */}
+        <div className="mt-auto pt-2">
+          {claim.status === "pending" && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                onResolve(claim.id, claim.item_id, "approved", meetupInput.trim());
+              }}
+              className="w-full"
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-[120px_120px_auto] items-center gap-2.5">
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                  className="rounded-full h-9 px-4 text-[13px] font-medium bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 text-foreground w-full order-2 sm:order-1"
+                  onClick={() => onResolve(claim.id, claim.item_id, "rejected")}
+                >
+                  Decline
+                </Button>
+                <Button
+                  size="sm"
+                  className="rounded-full h-9 px-5 text-[13px] font-medium bg-foreground text-background hover:bg-foreground/90 transition-all shadow-sm w-full order-3 sm:order-2"
+                  type="submit"
+                >
+                  Accept claim
+                </Button>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="group rounded-full h-9 px-4 text-[12px] font-medium border-black/[0.12] dark:border-white/[0.12] gap-1.5 shadow-sm text-foreground hover:bg-black/[0.02] dark:hover:bg-white/[0.02] col-span-2 sm:col-span-1 w-full transition-all order-1 sm:order-3">
+                      <MapPin className="h-3.5 w-3.5 opacity-70 shrink-0" />
+                      <span className="truncate max-w-[140px]">{meetupInput || "Set location"}</span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-50 ml-auto sm:ml-0.5 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-[200px] rounded-xl menu-surface">
+                    <DropdownMenuItem className="text-[12px]" onClick={() => setMeetupInput("SFIT Library")}>SFIT Library</DropdownMenuItem>
+                    <DropdownMenuItem className="text-[12px]" onClick={() => setMeetupInput("Canteen")}>Canteen</DropdownMenuItem>
+                    <DropdownMenuItem className="text-[12px]" onClick={() => setMeetupInput("Security Desk")}>Security Desk</DropdownMenuItem>
+                    <DropdownMenuItem className="text-[12px]" onClick={() => setMeetupInput("Main Gate")}>Main Gate</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </form>
+          )}
+
+          {claim.status === "approved" && (
+            <div className="max-w-sm">
+              {editing ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void onSaveMeetup(meetupInput);
+                  }}
+                  className="w-full"
+                >
+                  <div className="grid grid-cols-2 sm:grid-cols-[120px_120px_auto] items-center gap-2.5">
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                      className="rounded-full h-8 px-4 text-[12px] font-medium bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 text-foreground w-full order-2 sm:order-1"
+                      onClick={onCancel}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="rounded-full h-8 px-5 text-[12px] font-medium bg-foreground text-background hover:bg-foreground/90 transition-all shadow-sm w-full order-3 sm:order-2"
+                      type="submit"
+                    >
+                      Save
+                    </Button>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="group rounded-full h-8 px-4 text-[12px] font-medium border-black/[0.12] dark:border-white/[0.12] gap-1.5 shadow-sm text-foreground hover:bg-black/[0.02] dark:hover:bg-white/[0.02] col-span-2 sm:col-span-1 w-full transition-all order-1 sm:order-3">
+                          <MapPin className="h-3.5 w-3.5 opacity-70 shrink-0" />
+                          <span className="truncate max-w-[140px]">{meetupInput || claim.meeting_details || "Set location"}</span>
+                          <ChevronDown className="h-3.5 w-3.5 opacity-50 ml-auto sm:ml-0.5 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-[200px] rounded-xl menu-surface">
+                        <DropdownMenuItem className="text-[12px]" onClick={() => setMeetupInput("SFIT Library")}>SFIT Library</DropdownMenuItem>
+                        <DropdownMenuItem className="text-[12px]" onClick={() => setMeetupInput("Canteen")}>Canteen</DropdownMenuItem>
+                        <DropdownMenuItem className="text-[12px]" onClick={() => setMeetupInput("Security Desk")}>Security Desk</DropdownMenuItem>
+                        <DropdownMenuItem className="text-[12px]" onClick={() => setMeetupInput("Main Gate")}>Main Gate</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex flex-col">
+                    <span className="text-[13px] text-muted-foreground mb-1">Handover location</span>
+                    <span className="text-[13.5px] text-foreground">
+                      {claim.meeting_details?.trim() || "Public campus place"}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onEdit}
+                    className="rounded-md h-8 px-3 text-[12px] font-medium border-black/[0.1] dark:border-white/[0.1] shadow-sm self-start sm:self-auto"
+                  >
+                    Change
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {(claim.status === "rejected" || claim.status === "withdrawn") && (
+            <div className="text-[13px] text-muted-foreground">
+              {claim.status === "rejected" && "You declined this claim."}
+              {claim.status === "withdrawn" && "The claimant withdrew this request."}
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function NotificationCard({
+  notification,
+  onMarkRead,
+}: {
+  notification: DBNotification;
+  onMarkRead: (id: string) => void;
+}) {
+  const href = hrefForNotification(notification);
+  const view = presentNotification(notification);
+  const formattedRelative = formatRelativeTime(notification.created_at);
+
+  return (
+    <article
+      className={cn(
+        "group relative flex flex-col justify-between rounded-2xl border p-4 sm:p-5 transition-all",
+        notification.read
+          ? "border-border/50 bg-card/60 dark:border-white/[0.06] dark:bg-[#151518]/70 hover:border-border/80 dark:hover:border-white/[0.12]"
+          : "border-border/80 bg-card/90 dark:border-white/[0.12] dark:bg-[#18181c]/95 shadow-[0_2px_12px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-primary/40 dark:hover:border-primary/40",
+      )}
+    >
+      <div>
+        {/* Top Header: Kicker + Unread tag + Read toggle */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {view.kicker}
+          </span>
+          <div className="flex items-center gap-2.5 shrink-0">
+            {!notification.read && (
+              <>
+                <span className="text-[10.5px] font-semibold uppercase tracking-wider text-campus">
+                  New
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onMarkRead(notification.id)}
+                  className="text-[11.5px] font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
+                >
+                  Mark read
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Title link */}
+        <Link
+          to={href}
+          className="mt-2 block group/link"
+          onClick={() => {
+            if (!notification.read) onMarkRead(notification.id);
+          }}
+        >
+          <h2 className="font-display text-[15px] font-semibold tracking-tight text-foreground transition-colors group-hover/link:text-campus line-clamp-1">
+            {view.title}
+          </h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-foreground/80 dark:text-foreground/75 font-normal line-clamp-2">
+            {view.body}
+          </p>
+        </Link>
+      </div>
+
+      {/* Hairline Footer: Relative timestamp on left, direct action on right */}
+      <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-2.5 dark:border-white/[0.05] text-[11.5px] text-muted-foreground">
+        <span>{formattedRelative}</span>
+        <Link
+          to={href}
+          className="font-medium text-foreground/90 transition-colors hover:text-campus hover:underline inline-flex items-center gap-1"
+          onClick={() => {
+            if (!notification.read) onMarkRead(notification.id);
+          }}
+        >
+          Open details →
+        </Link>
+      </div>
+    </article>
   );
 }
 
@@ -939,15 +1602,15 @@ function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="tile flex flex-col items-center px-6 py-14 text-center sm:py-16">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-border/50 bg-card/40 px-6 py-14 text-center sm:py-16 dark:border-white/[0.06] dark:bg-white/[0.015]">
       {icon && (
-        <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+        <div className="mb-4 flex items-center justify-center text-muted-foreground/60">
           {icon}
         </div>
       )}
-      <p className="font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{title}</p>
-      <p className="mx-auto mt-2 max-w-sm text-[14.5px] leading-relaxed text-muted-foreground sm:text-[15px]">{text}</p>
-      {action && <div className="mt-6">{action}</div>}
+      <p className="font-display text-lg font-semibold tracking-tight text-foreground sm:text-xl">{title}</p>
+      <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed text-muted-foreground sm:text-[14px]">{text}</p>
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }
