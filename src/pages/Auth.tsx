@@ -7,7 +7,7 @@ import { createGoogleNonce, GOOGLE_CLIENT_ID, loadGoogleIdentity } from "@/lib/g
 import { extractEmailFromCredential, formatAuthError, getEmailLockCache, isAllowedSfitEmail } from "@/lib/email";
 import { useSfitEmailLock } from "@/hooks/use-sfit-email-lock";
 import sfitWallDesktop from "@/assets/c4829165-9c96-4a52-8797-85b58329b445.png";
-import sfitWallMobile from "@/assets/940888dc-e740-4516-a100-3e2a57cbe46b.png";
+import sfitWallMobile from "@/assets/8371d784-9f63-4ef3-9706-362a8cc2465a.png";
 
 export default function Auth() {
   const { user, loading, signInWithGoogle, signInWithGoogleIdToken } = useAuth();
