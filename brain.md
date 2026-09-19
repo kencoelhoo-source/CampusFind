@@ -585,3 +585,20 @@ When modifying or extending CampusFind:
 - **Micro-interactions & Tactile Feedback**:
   - Buttons feature `active:scale-[0.98]` spring depression and 150ms border/background transitions.
   - Interactive pill links feature subtle hover lift and click feedback.
+
+### 10.6 Claims Clearance & Apple-Grade Listing Resolution Architecture (September 2026)
+- **Dashboard Claims Clearance & Lifecycle Filter**:
+  - Introduced segmented filter (`All`, `Active`, `Resolved`) in Dashboard → My Claims, allowing users to separate ongoing handovers from concluded cases.
+  - Dual-layer persistence: `clearClaim` and `clearAllResolvedClaims` attempt remote Supabase deletion (`claims FOR DELETE`) while synchronizing to persistent client storage (`campusfind_dismissed_claims_${userId}`), guaranteeing instant UI clearance and cross-session persistence with undo capability.
+  - Added individual "Clear" action button on every resolved, withdrawn, or declined claim card in `MyClaimCard`.
+  - Added bulk "Clear resolved" action in the Claims tab header when finished claims exist.
+  - Enriched item navigation links with React Router route state (`state={{ fromClaim: claim, itemTitle, itemStatus }}`), ensuring zero-latency context passing even if the underlying database row was soft-deleted.
+- **Apple-Grade Item Resolution Showcase (`ItemResolutionNotice.tsx`)**:
+  - Replaced the unstyled `Item not found.` void with a dedicated Apple-inspired resolution presentation.
+  - Gracefully discriminates between distinct post lifecycles:
+    - **Removed / Concluded**: Clear explanation that the post was removed by the author, contextual claim memo with proof notes/handover state, and direct "Clear claim from my history" shortcut.
+    - **Returned / Reunited**: Celebratory Apple success badge with `CheckCircle2` indicating successful campus recovery.
+    - **Claimed / Handover**: In-progress status banner with `Clock` highlighting campus collection in flight.
+    - **Listing Unavailable**: Minimalist Apple empty state with clean SF Pro typography and navigation back to active listings.
+  - Prominent Apple status banners integrated above active item details when marked `returned` or `claimed`.
+

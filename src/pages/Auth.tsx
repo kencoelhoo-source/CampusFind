@@ -6,8 +6,8 @@ import { toast } from "@/components/ui/sonner";
 import { createGoogleNonce, GOOGLE_CLIENT_ID, loadGoogleIdentity } from "@/lib/google-gis";
 import { extractEmailFromCredential, formatAuthError, getEmailLockCache, isAllowedSfitEmail } from "@/lib/email";
 import { useSfitEmailLock } from "@/hooks/use-sfit-email-lock";
-import sfitWallDesktop from "@/assets/c4829165-9c96-4a52-8797-85b58329b445.png";
-import sfitWallMobile from "@/assets/8371d784-9f63-4ef3-9706-362a8cc2465a.png";
+import sfitWallDesktop from "@/assets/c4829165-9c96-4a52-8797-85b58329b445.webp";
+import sfitWallMobile from "@/assets/8371d784-9f63-4ef3-9706-362a8cc2465a.webp";
 
 export default function Auth() {
   const { user, loading, signInWithGoogle, signInWithGoogleIdToken } = useAuth();

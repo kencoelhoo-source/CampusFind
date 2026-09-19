@@ -18,6 +18,7 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import { Check, Package, Trash2, RotateCcw, Inbox, Bell, MapPin, ArrowLeft, ArrowRight, ChevronLeft, ChevronDown, ShieldCheck } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
+import { motion } from "framer-motion";
 import { Switch } from "@/components/ui/switch";
 import { useSfitEmailLock } from "@/hooks/use-sfit-email-lock";
 import { canManageSfitEmailLock } from "@/lib/email";
@@ -210,6 +211,16 @@ export default function Dashboard() {
   const [dismissedDesktopAlertsPrompt, setDismissedDesktopAlertsPrompt] = useState(false);
   const [inboxFilter, setInboxFilter] = useState<"all" | "pending" | "resolved">("all");
   const [notifFilter, setNotifFilter] = useState<"all" | "unread">("all");
+  const [claimsFilter, setClaimsFilter] = useState<"all" | "active" | "resolved">("all");
+  const [dismissedClaimIds, setDismissedClaimIds] = useState<string[]>(() => {
+    if (!user?.id) return [];
+    try {
+      const stored = localStorage.getItem(`campusfind_dismissed_claims_${user.id}`);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
@@ -234,6 +245,26 @@ export default function Dashboard() {
   const incomingClaims = data?.incomingClaims || [];
   const unreadCount = notifications.filter((notification) => !notification.read).length;
   const pendingInbox = incomingClaims.filter((claim) => claim.status === "pending").length;
+
+  const visibleClaims = myClaims.filter((c) => !dismissedClaimIds.includes(c.id));
+
+  const activeClaimsCount = visibleClaims.filter(
+    (c) => c.status === "pending" || (c.status === "approved" && c.items?.status !== "returned")
+  ).length;
+
+  const resolvedClaimsCount = visibleClaims.filter(
+    (c) => c.status === "withdrawn" || c.status === "rejected" || c.items?.status === "returned"
+  ).length;
+
+  const filteredMyClaims = visibleClaims.filter((claim) => {
+    const isResolved =
+      claim.status === "withdrawn" ||
+      claim.status === "rejected" ||
+      claim.items?.status === "returned";
+    if (claimsFilter === "active") return !isResolved;
+    if (claimsFilter === "resolved") return isResolved;
+    return true;
+  });
 
   const filteredIncoming = incomingClaims.filter((claim) => {
     if (inboxFilter === "pending") return claim.status === "pending";
@@ -425,6 +456,69 @@ export default function Dashboard() {
     await refreshQueries();
   };
 
+  const clearClaim = async (claimId: string) => {
+    const nextDismissed = Array.from(new Set([...dismissedClaimIds, claimId]));
+    setDismissedClaimIds(nextDismissed);
+    if (user) {
+      try {
+        localStorage.setItem(`campusfind_dismissed_claims_${user.id}`, JSON.stringify(nextDismissed));
+      } catch {
+        // ignore storage errors
+      }
+      void supabase.from("claims").delete().eq("id", claimId);
+    }
+    toast.success("Claim removed from your history", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const undone = dismissedClaimIds.filter((id) => id !== claimId);
+          setDismissedClaimIds(undone);
+          if (user) {
+            try {
+              localStorage.setItem(`campusfind_dismissed_claims_${user.id}`, JSON.stringify(undone));
+            } catch {
+              // ignore
+            }
+          }
+        },
+      },
+    });
+  };
+
+  const clearAllResolvedClaims = async () => {
+    const resolvedIds = visibleClaims
+      .filter((c) => c.status === "withdrawn" || c.status === "rejected" || c.items?.status === "returned")
+      .map((c) => c.id);
+
+    if (resolvedIds.length === 0) return;
+
+    const nextDismissed = Array.from(new Set([...dismissedClaimIds, ...resolvedIds]));
+    setDismissedClaimIds(nextDismissed);
+    if (user) {
+      try {
+        localStorage.setItem(`campusfind_dismissed_claims_${user.id}`, JSON.stringify(nextDismissed));
+      } catch {
+        // ignore
+      }
+      void supabase.from("claims").delete().in("id", resolvedIds);
+    }
+    toast.success("Resolved claims cleared", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setDismissedClaimIds(dismissedClaimIds);
+          if (user) {
+            try {
+              localStorage.setItem(`campusfind_dismissed_claims_${user.id}`, JSON.stringify(dismissedClaimIds));
+            } catch {
+              // ignore
+            }
+          }
+        },
+      },
+    });
+  };
+
   const saveMeetup = async (claimId: string, meetup: string) => {
     const trimmed = meetup.trim();
     const { error } = await supabase
@@ -510,9 +604,9 @@ export default function Dashboard() {
             </TabsTrigger>
             <TabsTrigger value="my-claims" className="px-2 text-[12px] sm:px-4 sm:text-[13px]">
               <span>Claims</span>
-              {myClaims.length > 0 && (
+              {visibleClaims.length > 0 && (
                 <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground/10 px-1 text-[10.5px] font-semibold tabular-nums text-foreground dark:bg-white/20 dark:text-white">
-                  {myClaims.length}
+                  {visibleClaims.length}
                 </span>
               )}
             </TabsTrigger>
@@ -596,7 +690,7 @@ export default function Dashboard() {
                       className="relative h-[4.25rem] w-[4.25rem] shrink-0 overflow-hidden rounded-xl bg-muted sm:h-20 sm:w-20"
                     >
                       {item.image_url ? (
-                        <img src={item.image_url} alt="" className="h-full w-full object-cover" />
+                        <img src={item.image_url} alt={`Thumbnail of ${item.title}`} className="h-full w-full object-cover" />
                       ) : (
                         <div className="flex h-full w-full items-end bg-gradient-to-br from-muted to-secondary p-2">
                           <Package className="h-4 w-4 text-muted-foreground/70" />
@@ -642,24 +736,83 @@ export default function Dashboard() {
         </TabsContent>
 
         <TabsContent value="my-claims" className="mt-5">
+          {visibleClaims.length > 0 && (
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-0.5">
+              <div className="flex flex-row items-center justify-between w-full sm:w-auto sm:justify-start gap-3 sm:gap-5 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[13px] font-medium text-foreground">Your claims</span>
+                </div>
+
+                {/* Segmented Filter Control */}
+                <div className="relative inline-flex w-fit items-center rounded-full border border-black/[0.04] bg-neutral-100/50 p-[3px] dark:border-white/[0.06] dark:bg-white/[0.03]">
+                  {["all", "active", "resolved"].map((filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setClaimsFilter(filter as "all" | "active" | "resolved")}
+                      className={cn(
+                        "relative z-10 rounded-full px-3 py-1 text-[11.5px] font-medium transition-colors outline-none",
+                        claimsFilter === filter
+                          ? "text-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {claimsFilter === filter && (
+                        <motion.div
+                          layoutId="claimsFilterPill"
+                          className="absolute inset-0 z-[-1] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] dark:bg-[#202024] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)]"
+                          transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                        />
+                      )}
+                      <span className="capitalize">{filter}</span>{" "}
+                      ({filter === "all" ? visibleClaims.length : filter === "active" ? activeClaimsCount : resolvedClaimsCount})
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {resolvedClaimsCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void clearAllResolvedClaims()}
+                  className="text-[12px] font-medium text-muted-foreground transition-colors hover:text-rose-500 dark:hover:text-rose-400"
+                >
+                  Clear resolved
+                </button>
+              )}
+            </div>
+          )}
+
           {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
               <SkeletonList />
             </div>
-          ) : myClaims.length === 0 ? (
+          ) : visibleClaims.length === 0 ? (
             <EmptyState
               icon={<Inbox className="h-6 w-6 text-indigo-500 dark:text-indigo-400" strokeWidth={1.75} />}
               title="No claims yet"
-              text="When you claim something on the board, it appears here."
+              text={
+                myClaims.length > 0
+                  ? "All completed claims have been cleared from your history."
+                  : "When you claim something on the board, it appears here."
+              }
               action={
                 <Button asChild>
                   <Link to="/items">Browse the board</Link>
                 </Button>
               }
             />
+          ) : filteredMyClaims.length === 0 ? (
+            <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-card/60 p-8 text-center my-4">
+              <p className="text-[13px] text-muted-foreground">
+                {claimsFilter === "active"
+                  ? "No active claims in progress."
+                  : "No resolved claims in history."}
+              </p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-              {myClaims.map((claim) => (
+              {filteredMyClaims.map((claim) => (
                 <MyClaimCard
                   key={claim.id}
                   claim={claim}
@@ -671,6 +824,7 @@ export default function Dashboard() {
                     setEditingMeetupId(null);
                   }}
                   onWithdraw={(id) => void withdrawClaim(id)}
+                  onClear={(id) => void clearClaim(id)}
                 />
               ))}
             </div>
@@ -1160,6 +1314,7 @@ function MyClaimCard({
   onCancel,
   onSaveMeetup,
   onWithdraw,
+  onClear,
 }: {
   claim: DBClaim;
   editing: boolean;
@@ -1167,6 +1322,7 @@ function MyClaimCard({
   onCancel: () => void;
   onSaveMeetup: (meetup: string) => Promise<void> | void;
   onWithdraw: (id: string) => void;
+  onClear?: (id: string) => void;
 }) {
   const formattedDate = claim.created_at
     ? (() => {
@@ -1178,6 +1334,19 @@ function MyClaimCard({
       })()
     : null;
 
+  const itemNavigationState = {
+    fromClaim: claim,
+    itemTitle: claim.items?.title,
+    itemStatus: claim.items?.status,
+    itemCategory: claim.items?.category,
+    itemLocation: claim.items?.location,
+  };
+
+  const isResolved =
+    claim.status === "withdrawn" ||
+    claim.status === "rejected" ||
+    claim.items?.status === "returned";
+
   return (
     <article className="flex flex-col justify-between rounded-lg border border-black/[0.08] dark:border-white/[0.08] bg-card p-5 transition-all">
       <div>
@@ -1185,10 +1354,11 @@ function MyClaimCard({
           <div className="flex items-start gap-3 min-w-0">
             <Link
               to={`/items/${claim.item_id}`}
+              state={itemNavigationState}
               className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-black/[0.05] dark:border-white/[0.05] bg-muted/60 transition-opacity hover:opacity-80"
             >
               {claim.items?.image_url ? (
-                <img src={claim.items.image_url} alt="" className="h-full w-full object-cover" />
+                <img src={claim.items.image_url} alt={`Thumbnail of ${claim.items.title}`} className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-secondary/40">
                   <Package className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
@@ -1200,6 +1370,7 @@ function MyClaimCard({
               <h2 className="truncate text-[15px] font-medium tracking-tight">
                 <Link
                   to={`/items/${claim.item_id}`}
+                  state={itemNavigationState}
                   className="hover:underline transition-colors"
                 >
                   {claim.items?.title || "Item"}
@@ -1253,7 +1424,7 @@ function MyClaimCard({
           {claim.status === "withdrawn" && "You withdrew this claim"}
         </div>
 
-        <div>
+        <div className="flex items-center gap-2">
           {claim.status === "pending" && (
             <Button
               size="sm"
@@ -1271,7 +1442,18 @@ function MyClaimCard({
               variant="outline"
               className="h-8 rounded-md border-black/[0.1] dark:border-white/[0.1] text-[12.5px] px-3 shadow-sm"
             >
-              <Link to={`/items/${claim.item_id}`}>View listing</Link>
+              <Link to={`/items/${claim.item_id}`} state={itemNavigationState}>View listing</Link>
+            </Button>
+          )}
+          {isResolved && onClear && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 rounded-md text-[12.5px] text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors px-2.5 flex items-center gap-1.5"
+              onClick={() => onClear(claim.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Clear</span>
             </Button>
           )}
         </div>
@@ -1362,6 +1544,7 @@ function ClaimInspectionCanvas({
               <span className="text-[13px] font-medium text-foreground truncate">{claim.items?.title || "Item"}</span>
               <Link
                 to={`/items/${claim.item_id}`}
+                state={{ fromClaim: claim, itemTitle: claim.items?.title, itemStatus: claim.items?.status }}
                 className="text-[12px] text-muted-foreground hover:text-foreground hover:underline ml-auto shrink-0 transition-colors inline-flex items-center gap-0.5"
               >
                 View <span className="text-[10px]">↗</span>

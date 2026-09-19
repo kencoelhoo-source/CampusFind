@@ -304,6 +304,18 @@ export type Database = {
           user_id: string
         }[]
       }
+      check_item_availability: {
+        Args: { _id: string }
+        Returns: {
+          id: string
+          title: string
+          status: string
+          category: string
+          location: string | null
+          is_deleted: boolean
+          deleted_at: string | null
+        }[]
+      }
       list_public_item_images: {
         Args: { _ids: string[] }
         Returns: {

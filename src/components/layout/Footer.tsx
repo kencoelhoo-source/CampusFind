@@ -26,7 +26,24 @@ export function Footer({ embedded = false }: { embedded?: boolean }) {
             : "text-muted-foreground/80",
         )}
       >
-        <p className="tracking-tight">Copyright © {new Date().getFullYear()} CampusFind. SFIT, Mumbai.</p>
+        <div className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 tracking-tight">
+          <p>© {new Date().getFullYear()} CampusFind.</p>
+          <span className="opacity-40">•</span>
+          <p className="flex items-center gap-1">
+            Built by
+            <a 
+              href="https://github.com/kencoelhoo-source" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className={cn(
+                "font-medium transition-colors duration-200", 
+                embedded ? "hover:text-white" : "text-foreground hover:text-foreground/80"
+              )}
+            >
+              Ken Coelho
+            </a>
+          </p>
+        </div>
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
           {footerLinks.map((link) => (
             <Link

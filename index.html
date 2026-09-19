@@ -16,16 +16,40 @@
     <title>CampusFind — SFIT Lost & Found</title>
     <meta name="description" content="Losing something in college is the worst, especially when you don’t even know where to start looking. This website was built for SFIT students to report lost items.">
 
-    <!-- Favicon -->
+    <!-- Favicon & PWA -->
     <link rel="icon" type="image/png" href="/favicon.png" />
-    
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- SEO -->
+    <link rel="canonical" href="https://campusfind.vercel.app/" />
+
+    <!-- Social & Open Graph -->
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta property="og:title" content="SFIT Lost &amp; Found Portal">
-  <meta name="twitter:title" content="SFIT Lost &amp; Found Portal">
-  <meta property="og:description" content="Losing something in college is the worst, especially when you don’t even know where to start looking. This website was built for SFIT students to report lost it">
-  <meta name="twitter:description" content="Losing something in college is the worst, especially when you don’t even know where to start looking. This website was built for SFIT students to report lost it">
-</head>
+    <meta name="twitter:title" content="SFIT Lost &amp; Found Portal">
+    <meta property="og:description" content="Losing something in college is the worst. This website was built for SFIT students to report lost items.">
+    <meta name="twitter:description" content="Losing something in college is the worst. This website was built for SFIT students to report lost items.">
+    <meta property="og:image" content="/og-image.png" />
+    <meta name="twitter:image" content="/og-image.png" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "CampusFind",
+        "url": "https://campusfind.vercel.app/",
+        "description": "SFIT Lost & Found Portal for students to report and recover lost items.",
+        "applicationCategory": "EducationalApplication",
+        "publisher": {
+          "@type": "EducationalOrganization",
+          "name": "SFIT"
+        }
+      }
+    </script>
+  </head>
 
   <body>
     <div id="root">

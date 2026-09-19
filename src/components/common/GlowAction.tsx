@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 type Node = {
   el: HTMLElement;
@@ -29,10 +30,12 @@ function tick() {
 export function GlowAction({
   to,
   onClick,
+  className,
   children,
 }: {
   to?: string;
   onClick?: (e: React.MouseEvent) => void;
+  className?: string;
   children: ReactNode;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -99,13 +102,13 @@ export function GlowAction({
   }, []);
 
   return (
-    <div ref={wrapRef} className="hero-glow">
+    <div ref={wrapRef} className={cn("hero-glow", className)}>
       {to ? (
-        <Link to={to} onClick={onClick} className="hero-glow-btn">
+        <Link to={to} onClick={onClick} className={cn("hero-glow-btn", className && "w-full")}>
           {children}
         </Link>
       ) : (
-        <button type="button" onClick={onClick} className="hero-glow-btn">
+        <button type="button" onClick={onClick} className={cn("hero-glow-btn", className && "w-full")}>
           {children}
         </button>
       )}

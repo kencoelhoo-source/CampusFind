@@ -423,7 +423,7 @@ export default function PostItem() {
               <div className="flex flex-wrap gap-3">
                 {previews.map((preview, i) => (
                   <div key={i} className="relative h-20 w-20 overflow-hidden rounded-2xl border">
-                    <img src={preview} alt="" className="h-full w-full object-cover" />
+                    <img src={preview} alt="Uploaded preview" className="h-full w-full object-cover" />
                     <button type="button" onClick={() => removeImage(i)} className="absolute right-1 top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground">
                       <X className="h-3 w-3" />
                     </button>

@@ -92,7 +92,37 @@ export async function fetchItemDetail(id: string) {
 
   const item = (data || [])[0] as RawItem | undefined;
   if (!item) {
-    throw new Error("Item not found.");
+    // Check if availability RPC or direct select can reveal item state
+    try {
+      const { data: avail } = await supabase.rpc("check_item_availability", { _id: id });
+      const row = (avail || [])[0];
+      if (row) {
+        return {
+          item: null,
+          meta: {
+            id: row.id,
+            title: row.title,
+            status: row.status,
+            category: row.category,
+            location: row.location,
+            is_deleted: Boolean(row.is_deleted),
+          },
+          images: [],
+          poster: "Campus Member",
+          relatedItems: [],
+        };
+      }
+    } catch {
+      // ignore if RPC not yet created
+    }
+
+    return {
+      item: null,
+      meta: null,
+      images: [],
+      poster: "Campus Member",
+      relatedItems: [],
+    };
   }
 
   const [imagesRes, namesRes, relatedRes] = await Promise.all([
@@ -107,6 +137,14 @@ export async function fetchItemDetail(id: string) {
 
   return {
     item,
+    meta: {
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      category: item.category,
+      location: item.location,
+      is_deleted: false,
+    },
     images: imagesRes.data?.map((image) => image.url) || [],
     poster: namesRes.data?.[0]?.full_name || "Anonymous",
     relatedItems: await hydratePublicItems(related),

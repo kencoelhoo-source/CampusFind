@@ -76,6 +76,17 @@ These are enforced in Postgres, not only in the UI.
 
 ---
 
+## SEO & Discovery
+
+CampusFind is highly optimized for search engines, web performance, and AI indexing:
+
+- **Metadata**: Includes Open Graph tags, canonical links, and Schema.org JSON-LD structured data.
+- **Performance**: Heavy static assets (like campus photography) are compressed and served as WebP, drastically reducing bundle size.
+- **AI Readiness**: An `llms.txt` file and optimized `robots.txt` guide AI agents (like ChatGPT Search and Perplexity) on how to index the platform while protecting private user routes.
+- **PWA**: Includes a standard `site.webmanifest` and `apple-touch-icon.png` for installing to iOS and Android home screens.
+
+---
+
 ## Architecture
 
 ```mermaid

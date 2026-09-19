@@ -3,12 +3,23 @@ import { render, act } from "@testing-library/react";
 import { NetworkStatusNotifier } from "@/components/common/NetworkStatusNotifier";
 import { toast } from "sonner";
 
-vi.mock("sonner", () => ({
-  toast: {
+vi.mock("sonner", () => {
+  const toastMock = Object.assign(vi.fn(), {
     warning: vi.fn(),
     success: vi.fn(),
-  },
-}));
+    error: vi.fn(),
+    info: vi.fn(),
+    message: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    custom: vi.fn(),
+    dismiss: vi.fn(),
+  });
+  return {
+    toast: toastMock,
+    Toaster: vi.fn(),
+  };
+});
 
 describe("NetworkStatusNotifier", () => {
   beforeEach(() => {

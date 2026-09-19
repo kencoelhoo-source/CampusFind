@@ -10,5 +10,27 @@ Allow: /
 User-agent: facebookexternalhit
 Allow: /
 
+# Block AI scrapers from generic indexing
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+# Catch-all
 User-agent: *
 Allow: /
+Disallow: /dashboard
+Disallow: /auth
+Disallow: /post
+
+Sitemap: https://campusfind.vercel.app/sitemap.xml

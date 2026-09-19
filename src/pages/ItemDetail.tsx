@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ClaimModal } from "@/features/items/components/ClaimModal";
 import { ItemCard } from "@/features/items/components/ItemCard";
-import { ArrowLeft, Check, Share2, X } from "lucide-react";
+import { ItemResolutionNotice, type ResolutionKind } from "@/features/items/components/ItemResolutionNotice";
+import { ArrowLeft, Check, Share2, X, CheckCircle2, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ import { DetailSkeleton } from "@/components/common/Skeletons";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { custodyLabel } from "@/features/items/utils/item-custody";
+import type { DBClaim } from "@/types/database";
 
 const STATUS_WORD: Record<string, string> = {
   lost: "Lost",
@@ -30,12 +32,22 @@ const STATUS_TONE: Record<string, string> = {
 
 export default function ItemDetail() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeImage, setActiveImage] = useState(0);
   const [claimOpen, setClaimOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const routeState = (location.state || {}) as {
+    fromClaim?: Partial<DBClaim>;
+    itemTitle?: string;
+    itemStatus?: string;
+    itemCategory?: string;
+    itemLocation?: string;
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["item", id],
@@ -58,6 +70,27 @@ export default function ItemDetail() {
     },
   });
 
+  const resolvedClaim = (myClaim || routeState.fromClaim || null) as Partial<DBClaim> | null;
+
+  const handleClearClaim = async (claimId: string) => {
+    if (user) {
+      try {
+        const stored = localStorage.getItem(`campusfind_dismissed_claims_${user.id}`);
+        const dismissed: string[] = stored ? JSON.parse(stored) : [];
+        if (!dismissed.includes(claimId)) {
+          dismissed.push(claimId);
+          localStorage.setItem(`campusfind_dismissed_claims_${user.id}`, JSON.stringify(dismissed));
+        }
+      } catch {
+        // ignore local storage issues
+      }
+      void supabase.from("claims").delete().eq("id", claimId);
+    }
+    toast.success("Claim removed from your history");
+    await queryClient.invalidateQueries({ queryKey: ["dashboard", user?.id] });
+    navigate("/dashboard?tab=my-claims");
+  };
+
   useEffect(() => {
     setActiveImage(0);
     setCopied(false);
@@ -77,8 +110,25 @@ export default function ItemDetail() {
   }
 
   if (!data?.item) {
+    let resolutionKind: ResolutionKind = "not_found";
+    if (data?.meta?.is_deleted || resolvedClaim) {
+      resolutionKind = "removed";
+    } else if (data?.meta?.status === "returned" || routeState.itemStatus === "returned") {
+      resolutionKind = "returned";
+    } else if (data?.meta?.status === "claimed" || routeState.itemStatus === "claimed") {
+      resolutionKind = "claimed";
+    }
+
     return (
-      <div className="container py-24 text-center text-muted-foreground">Item not found.</div>
+      <ItemResolutionNotice
+        kind={resolutionKind}
+        itemId={id}
+        itemTitle={data?.meta?.title || routeState.itemTitle || (resolvedClaim?.items?.title as string | undefined)}
+        itemCategory={data?.meta?.category || routeState.itemCategory}
+        itemLocation={data?.meta?.location || routeState.itemLocation}
+        claim={resolvedClaim}
+        onClearClaim={resolvedClaim?.id ? handleClearClaim : undefined}
+      />
     );
   }
 
@@ -155,6 +205,24 @@ export default function ItemDetail() {
           Items
         </Link>
 
+        {item.status === "returned" && (
+          <div className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4 text-foreground dark:border-emerald-500/30 dark:bg-emerald-500/[0.08] animate-fade-in">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="text-[13px] leading-relaxed">
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">Case closed · Reunited.</span> This item was marked as returned to its owner on campus.
+            </div>
+          </div>
+        )}
+
+        {item.status === "claimed" && (
+          <div className="mt-5 flex items-center gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-4 text-foreground dark:border-amber-500/30 dark:bg-amber-500/[0.08] animate-fade-in">
+            <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="text-[13px] leading-relaxed">
+              <span className="font-semibold text-amber-700 dark:text-amber-300">Claim accepted · In handover.</span> The finder and claimant are coordinating campus collection.
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 grid items-start gap-8 md:mt-8 md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] md:gap-12 lg:gap-16">
           <div className="animate-scale-in">
             <button
@@ -195,7 +263,7 @@ export default function ItemDetail() {
                         : "ring-transparent opacity-45 hover:opacity-80",
                     )}
                   >
-                    <img src={url} alt="" className="h-full w-full object-cover" />
+                    <img src={url} alt={`Photo ${i + 1} of ${item.title}`} className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>

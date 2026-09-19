@@ -1,0 +1,21 @@
+{
+  "name": "CampusFind — SFIT Lost & Found",
+  "short_name": "CampusFind",
+  "description": "Losing something in college is the worst. This website was built for SFIT students to report lost items.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#161412",
+  "theme_color": "#161412",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

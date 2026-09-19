@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { Button } from "@/components/ui/button";
@@ -23,13 +24,14 @@ import {
   ShieldCheck,
   MapPin,
   EyeOff,
+  Plus,
 } from "lucide-react";
 import heroCampus from "@/assets/hero-campus.jpg";
 import heroMobile from "@/assets/hero-mobile.jpg";
-import ctaBgLight from "@/assets/d583a0b4-1ce2-4978-9e7f-a029494d6058.png";
-import ctaBgDark from "@/assets/4abc0fac-82b8-4587-8c55-bccbcba4bc9b.png";
-import ctaBgLightMobile from "@/assets/a7a160a9-01a1-4cfc-b8c6-b5b244c8c641.png";
-import ctaBgDarkMobile from "@/assets/d51212a2-1fa5-4bab-9fc8-ebd4cc54417f.png";
+import ctaBgLight from "@/assets/d583a0b4-1ce2-4978-9e7f-a029494d6058.webp";
+import ctaBgDark from "@/assets/4abc0fac-82b8-4587-8c55-bccbcba4bc9b.webp";
+import ctaBgLightMobile from "@/assets/a7a160a9-01a1-4cfc-b8c6-b5b244c8c641.webp";
+import ctaBgDarkMobile from "@/assets/d51212a2-1fa5-4bab-9fc8-ebd4cc54417f.webp";
 import { fetchHomeStats, fetchRecentItems } from "@/features/items/services/itemsApi";
 import { useAuth } from "@/contexts/AuthContext";
 import { CATEGORIES } from "@/constants";
@@ -165,55 +167,25 @@ export default function Index() {
                 if (!trimmed) return;
                 navigate(`/items?q=${encodeURIComponent(trimmed)}`);
               }}
-              placeholder={'Try "black wallet" or "ID card"'}
+              placeholder="Search for lost items..."
             />
           </div>
 
-          <div
-            role="tablist"
-            aria-label="Report item"
-            className="relative isolate mt-3.5 flex h-11 w-full items-stretch rounded-full border border-white/20 bg-white/[0.12] p-1 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,0.18)] sm:mt-6 md:hidden"
-          >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute bottom-1 left-1 top-1 z-0 w-[calc(50%-4px)] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.18),0_1px_2px_rgba(0,0,0,0.1)] transition-transform duration-200 ease-apple will-change-transform"
-              style={{
-                transform: mobileAction === "found" ? "translate3d(100%, 0, 0)" : "translate3d(0, 0, 0)",
+          {/* Mobile CTA: Report an item */}
+          <div className="mt-8 flex w-full animate-fade-in justify-start sm:w-auto md:hidden" style={{ animationDelay: "0.24s" }}>
+            <GlowAction
+              className="w-full sm:w-auto"
+              onClick={() => {
+                if (user) navigate("/post");
+                else openAuthPrompt({ actionType: "report", redirectUrl: "/post" });
               }}
-            />
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mobileAction === "lost"}
-              onClick={() => handleMobileActionClick("lost")}
-              className="relative z-10 flex h-full flex-1 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 active:scale-[0.98]"
             >
-              <span
-                className={cn(
-                  "select-none whitespace-nowrap px-1 text-[12.5px] min-[380px]:text-[13px] font-medium tracking-tight leading-none transition-colors duration-200",
-                  mobileAction === "lost" ? "font-semibold text-neutral-900" : "text-white/80 hover:text-white"
-                )}
-              >
-                I lost something
-              </span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mobileAction === "found"}
-              onClick={() => handleMobileActionClick("found")}
-              className="relative z-10 flex h-full flex-1 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 active:scale-[0.98]"
-            >
-              <span
-                className={cn(
-                  "select-none whitespace-nowrap px-1 text-[12.5px] min-[380px]:text-[13px] font-medium tracking-tight leading-none transition-colors duration-200",
-                  mobileAction === "found" ? "font-semibold text-neutral-900" : "text-white/80 hover:text-white"
-                )}
-              >
-                I found something
-              </span>
-            </button>
+              <Plus className="mr-2 h-[1.1rem] w-[1.1rem] opacity-90" />
+              Report an item
+            </GlowAction>
           </div>
+
+          {/* Desktop CTA: Lost/Found split */}
           <div className="mt-6 hidden animate-fade-in gap-3 md:flex" style={{ animationDelay: "0.24s" }}>
             <GlowAction
               onClick={() => {
@@ -414,8 +386,10 @@ export default function Index() {
             <p className="mx-auto mt-4 max-w-md text-[17px] leading-relaxed text-muted-foreground">
               You can still search. Sign in with your SFIT Google account when you're ready to post.
             </p>
-            <div className="mt-8 flex justify-center gap-3">
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              {/* Mobile CTA */}
               <Button
+                className="w-full sm:w-auto md:hidden"
                 onClick={() => {
                   if (user) navigate("/post");
                   else openAuthPrompt({ actionType: "report", redirectUrl: "/post" });
@@ -423,7 +397,28 @@ export default function Index() {
               >
                 Report an item
               </Button>
-              <Button variant="secondary" className="border border-border/70" asChild>
+
+              {/* Desktop CTAs */}
+              <Button
+                className="hidden w-full sm:w-auto md:inline-flex"
+                onClick={() => {
+                  if (user) navigate("/post?type=lost");
+                  else openAuthPrompt({ actionType: "lost", redirectUrl: "/post?type=lost" });
+                }}
+              >
+                I lost something
+              </Button>
+              <Button
+                className="hidden w-full sm:w-auto md:inline-flex"
+                onClick={() => {
+                  if (user) navigate("/post?type=found");
+                  else openAuthPrompt({ actionType: "found", redirectUrl: "/post?type=found" });
+                }}
+              >
+                I found something
+              </Button>
+
+              <Button variant="secondary" className="w-full sm:w-auto border border-border/70" asChild>
                 <Link to="/items">Browse anyway</Link>
               </Button>
             </div>
@@ -537,7 +532,7 @@ export default function Index() {
             <source media="(max-width: 767px)" srcSet={ctaBgLightMobile} />
             <img
               src={ctaBgLight}
-              alt=""
+              alt="App interface preview"
               className="h-full w-full object-cover object-center"
             />
           </picture>
@@ -545,7 +540,7 @@ export default function Index() {
             <source media="(max-width: 767px)" srcSet={ctaBgDarkMobile} />
             <img
               src={ctaBgDark}
-              alt=""
+              alt="App interface preview mobile"
               className="h-full w-full object-cover object-center"
             />
           </picture>
@@ -558,7 +553,7 @@ export default function Index() {
 
           <h2 className="mt-3.5 max-w-2xl font-display text-[2.25rem] font-semibold leading-[1.05] tracking-[-0.035em] text-foreground min-[375px]:text-[2.6rem] sm:mt-4 sm:text-5xl md:text-6xl lg:text-[4.25rem] dark:text-white">
             Built only for{" "}
-            <span className="text-[#3F5A24] dark:text-[#E8CC96]">
+            <span className="text-blue-700 dark:text-[#E8CC96]">
               SFIT.
             </span>
           </h2>

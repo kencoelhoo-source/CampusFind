@@ -1,0 +1,17 @@
+# CampusFind
+
+CampusFind is an academic lost-and-found registry built specifically for SFIT students. It helps students report, track, and recover lost items on campus.
+
+## Overview
+- **Purpose**: A centralized platform for reporting and finding lost items.
+- **Key Features**: Browse lost/found items, post new items, user dashboard for managing reported items.
+
+## Important Links
+- **Home**: https://campusfind.vercel.app/
+- **Browse Items**: https://campusfind.vercel.app/items
+- **FAQ**: https://campusfind.vercel.app/faq
+- **Privacy Policy**: https://campusfind.vercel.app/privacy
+- **Terms of Service**: https://campusfind.vercel.app/terms
+
+## Usage Guidelines
+Students can log in to report found items or search for things they've lost. The platform uses Supabase for real-time updates and notifications. Private routes (like user dashboards and posting items) require authentication and are not publicly indexed.

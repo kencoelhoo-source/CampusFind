@@ -366,14 +366,22 @@
       transform: translateZ(0);
       border-radius: 28px;
       overflow: hidden;
-      background: rgba(250, 250, 252, 0.82);
-      -webkit-backdrop-filter: blur(24px) saturate(180%);
-      backdrop-filter: blur(24px) saturate(180%);
-      border: 1px solid rgba(0, 0, 0, 0.09);
+      background: 
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E"),
+        rgba(255, 255, 255, 0.15);
+      background-repeat: repeat;
+      background-size: 150px 150px, auto;
+      
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      backdrop-filter: blur(16px) saturate(180%);
+      
+      border: 1px solid rgba(255, 255, 255, 0.3);
       box-shadow:
-        0 14px 34px -4px rgba(0, 0, 0, 0.14),
-        0 4px 14px -2px rgba(0, 0, 0, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        0 14px 34px -4px rgba(0, 0, 0, 0.1),
+        0 4px 14px -2px rgba(0, 0, 0, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+      
       -webkit-tap-highlight-color: transparent;
       contain: paint layout style;
       isolation: isolate;
@@ -382,12 +390,18 @@
     }
 
     .dark .mobile-dock {
-      background: rgba(18, 18, 22, 0.82);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: 
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E"),
+        rgba(20, 20, 24, 0.15);
+      background-repeat: repeat;
+      background-size: 150px 150px, auto;
+      
+      border: 1px solid rgba(255, 255, 255, 0.05);
       box-shadow:
-        0 16px 40px rgba(0, 0, 0, 0.55),
-        0 4px 16px rgba(0, 0, 0, 0.35),
-        inset 0 1px 0 rgba(255, 255, 255, 0.14);
+        0 16px 40px rgba(0, 0, 0, 0.5),
+        0 4px 16px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.15);
     }
   }
 
@@ -475,13 +489,17 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: hsl(var(--muted-foreground));
+    color: hsl(var(--foreground) / 0.55);
     border-radius: 24px;
     cursor: pointer;
     text-decoration: none;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
     transition: color 0.25s ease;
+  }
+
+  .dark .dock-tab {
+    color: hsl(var(--foreground) / 0.65);
   }
 
   .dock-tab.active {
