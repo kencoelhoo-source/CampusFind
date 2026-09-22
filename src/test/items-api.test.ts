@@ -24,6 +24,7 @@ describe("itemsApi", () => {
           user_id: "user-1",
           status: "lost",
           category: "electronics",
+          relevance_score: 95.5,
         },
       ];
 
@@ -60,6 +61,7 @@ describe("itemsApi", () => {
       expect(result.length).toBe(1);
       expect(result[0].image_url).toBe("https://example.com/mac.jpg");
       expect(result[0].poster_name).toBe("Ken Coelho");
+      expect(result[0].relevance_score).toBe(95.5);
     });
 
     it("routes to browse_public_items when keyword is empty", async () => {

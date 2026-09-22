@@ -1,0 +1,48 @@
+name: Daily Storage Media Cleanup
+
+on:
+  schedule:
+    # Run once every 24 hours at 00:00 UTC (05:30 IST)
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    # Allows manual trigger from GitHub Actions tab
+
+concurrency:
+  group: storage-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Purge Expired Storage Media
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Purge Edge Function
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          TARGET_URL="${SUPABASE_URL:-$VITE_SUPABASE_URL}"
+
+          if [ -z "$TARGET_URL" ] || [ -z "$SERVICE_ROLE_KEY" ]; then
+            echo "::warning ::SUPABASE_URL (or VITE_SUPABASE_URL) or SUPABASE_SERVICE_ROLE_KEY not configured in GitHub Secrets. Skipping purge invocation."
+            exit 0
+          fi
+
+          echo "Triggering purge-expired-media edge function..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST \
+            "$TARGET_URL/functions/v1/purge-expired-media" \
+            -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json")
+
+          HTTP_BODY=$(echo "$RESPONSE" | sed -e '$d')
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1 | cut -d':' -f2)
+
+          echo "Response: $HTTP_BODY"
+          echo "Status: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -ge 400 ]; then
+            echo "::error ::Purge function failed with status $HTTP_STATUS"
+            exit 1
+          fi

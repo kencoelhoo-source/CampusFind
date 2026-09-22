@@ -1,21 +1,29 @@
 -- Enable pg_trgm for fuzzy matching
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
--- Add generated full-text search column
-ALTER TABLE public.items
-ADD COLUMN fts tsvector GENERATED ALWAYS AS (
-  setweight(to_tsvector('simple'::regconfig, coalesce(title, '')), 'A') ||
-  setweight(to_tsvector('simple'::regconfig, coalesce(location, '')), 'B') ||
-  setweight(to_tsvector('simple'::regconfig, coalesce(description, '')), 'C')
-) STORED;
+-- Add generated full-text search column if it doesn't already exist
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'fts'
+  ) THEN
+    ALTER TABLE public.items
+    ADD COLUMN fts tsvector GENERATED ALWAYS AS (
+      setweight(to_tsvector('simple'::regconfig, coalesce(title, '')), 'A') ||
+      setweight(to_tsvector('simple'::regconfig, coalesce(location, '')), 'B') ||
+      setweight(to_tsvector('simple'::regconfig, coalesce(description, '')), 'C')
+    ) STORED;
+  END IF;
+END $$;
 
 -- Create GIN index for full-text search
-CREATE INDEX items_fts_idx ON public.items USING GIN (fts);
+CREATE INDEX IF NOT EXISTS items_fts_idx ON public.items USING GIN (fts);
 
 -- Create GIN pg_trgm indexes for fuzzy matching
-CREATE INDEX items_title_trgm_idx ON public.items USING GIN (title gin_trgm_ops);
-CREATE INDEX items_description_trgm_idx ON public.items USING GIN (description gin_trgm_ops);
-CREATE INDEX items_location_trgm_idx ON public.items USING GIN (location gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS items_title_trgm_idx ON public.items USING GIN (title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS items_description_trgm_idx ON public.items USING GIN (description gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS items_location_trgm_idx ON public.items USING GIN (location gin_trgm_ops);
 
 -- Define the return type for search results (to allow consistent return sets)
 DROP TYPE IF EXISTS public.search_result_item CASCADE;
@@ -47,7 +55,7 @@ CREATE OR REPLACE FUNCTION public.search_public_items(
 RETURNS SETOF public.search_result_item
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   fts_query tsquery;
@@ -61,13 +69,13 @@ BEGIN
            (ts_rank(i.fts, fts_query)) AS fts_score,
            (similarity(i.title, search_query) + similarity(coalesce(i.description, ''), search_query)) AS fuzzy_score
     FROM public.items i
-  WHERE i.deleted_at IS NULL
+    WHERE i.deleted_at IS NULL
       AND (search_type = 'all' OR i.status::text = search_type)
       AND (search_category = 'all' OR i.category::text = search_category)
       AND (
         (fts_query @@ i.fts) -- FTS match
         OR
-        (i.title % search_query OR coalesce(i.description, '') % search_query) -- Trigram match
+        (i.title % search_query OR coalesce(i.description, '') % search_query OR search_query <% i.title) -- Trigram & word match
       )
   ),
   scored AS (

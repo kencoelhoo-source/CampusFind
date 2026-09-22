@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { ItemFilters, ItemWithImage, RawItem } from "../types";
+import { rankItemsByQuery } from "../utils/search-engine";
 
 async function hydratePublicItems(items: RawItem[]): Promise<ItemWithImage[]> {
   if (items.length === 0) return [];
@@ -29,6 +30,7 @@ async function hydratePublicItems(items: RawItem[]): Promise<ItemWithImage[]> {
     status: item.status as ItemWithImage["status"],
     image_url: imageMap.get(item.id) || null,
     poster_name: profileMap.get(item.user_id) || null,
+    relevance_score: item.relevance_score ?? null,
   }));
 }
 
@@ -41,27 +43,62 @@ export async function fetchRecentItems(limit = 8) {
 
 export async function fetchBrowseItems(filters: ItemFilters) {
   if (filters.keyword && filters.keyword.trim().length > 0) {
-    const { data, error } = await supabase.rpc("search_public_items", {
-      search_query: filters.keyword.trim(),
-      search_type: filters.status === "all" ? 'all' : filters.status,
-      search_category: filters.category === "all" ? 'all' : filters.category,
-      p_limit: 20,
-      p_before_score: filters.beforeScore || null,
-      p_before_created_at: filters.beforeCreatedAt || null,
-      p_before_id: filters.beforeId || null,
-    });
-    if (error) throw error;
-    return hydratePublicItems((data || []) as RawItem[]);
+    try {
+      const { data, error } = await supabase.rpc("search_public_items", {
+        search_query: filters.keyword.trim(),
+        search_type: filters.status === "all" ? 'all' : filters.status,
+        search_category: filters.category === "all" ? 'all' : filters.category,
+        p_limit: 20,
+        p_before_score: filters.beforeScore || null,
+        p_before_created_at: filters.beforeCreatedAt || null,
+        p_before_id: filters.beforeId || null,
+      });
+      if (error) throw error;
+      return hydratePublicItems((data || []) as RawItem[]);
+    } catch (rpcErr) {
+      console.warn("search_public_items RPC failed or unavailable, falling back to resilient client-side search:", rpcErr);
+      const query = supabase
+        .from("items")
+        .select("id, title, description, category, location, status, date_occurred, created_at, user_id")
+        .is("deleted_at", null);
+
+      if (filters.status !== "all") query.eq("status", filters.status as any);
+      if (filters.category !== "all") query.eq("category", filters.category as any);
+
+      const { data: fallbackData, error: fallbackErr } = await query;
+      if (fallbackErr) throw fallbackErr;
+
+      const hydrated = await hydratePublicItems((fallbackData || []) as RawItem[]);
+      return rankItemsByQuery(hydrated, filters.keyword.trim());
+    }
   } else {
-    const { data, error } = await supabase.rpc("browse_public_items", {
-      search_type: filters.status === "all" ? 'all' : filters.status,
-      search_category: filters.category === "all" ? 'all' : filters.category,
-      p_limit: 20,
-      p_before_created_at: filters.beforeCreatedAt || null,
-      p_before_id: filters.beforeId || null,
-    });
-    if (error) throw error;
-    return hydratePublicItems((data || []) as RawItem[]);
+    try {
+      const { data, error } = await supabase.rpc("browse_public_items", {
+        search_type: filters.status === "all" ? 'all' : filters.status,
+        search_category: filters.category === "all" ? 'all' : filters.category,
+        p_limit: 20,
+        p_before_created_at: filters.beforeCreatedAt || null,
+        p_before_id: filters.beforeId || null,
+      });
+      if (error) throw error;
+      return hydratePublicItems((data || []) as RawItem[]);
+    } catch (rpcErr) {
+      console.warn("browse_public_items RPC failed or unavailable, falling back to direct table query:", rpcErr);
+      const query = supabase
+        .from("items")
+        .select("id, title, description, category, location, status, date_occurred, created_at, user_id")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (filters.status !== "all") query.eq("status", filters.status as any);
+      if (filters.category !== "all") query.eq("category", filters.category as any);
+
+      const { data: fallbackData, error: fallbackErr } = await query;
+      if (fallbackErr) throw fallbackErr;
+
+      return hydratePublicItems((fallbackData || []) as RawItem[]);
+    }
   }
 }
 

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { ItemCard } from "@/features/items/components/ItemCard";
 import { ListRowSkeleton, PosterSkeleton } from "@/components/common/Skeletons";
 import { SearchFilters } from "@/features/items/components/SearchFilters";
-import { LayoutGrid, List, Search, X } from "lucide-react";
+import { LayoutGrid, List, Search, X, Loader2, ChevronDown } from "lucide-react";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { fetchBrowseItems } from "@/features/items/services/itemsApi";
 import { filtersFromSearchParams, filtersToSearchParams } from "@/features/items/utils/item-filters";
@@ -42,11 +42,44 @@ export default function Items() {
     }
   }, [keyword, status, category, location, viewMode, searchParamString, setSearchParams]);
 
-  const { data: items = [], isLoading, isError, error, refetch } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["browse-items", { keyword, status, category, location }],
-    queryFn: () => fetchBrowseItems({ keyword, status, category, location }),
-    placeholderData: (previous) => previous,
+    queryFn: ({ pageParam }) =>
+      fetchBrowseItems({
+        keyword,
+        status,
+        category,
+        location,
+        beforeScore: pageParam?.beforeScore,
+        beforeCreatedAt: pageParam?.beforeCreatedAt,
+        beforeId: pageParam?.beforeId,
+      }),
+    initialPageParam: null as {
+      beforeScore?: number | null;
+      beforeCreatedAt?: string | null;
+      beforeId?: string | null;
+    } | null,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || lastPage.length < 20) return undefined;
+      const lastItem = lastPage[lastPage.length - 1];
+      return {
+        beforeScore: lastItem.relevance_score ?? null,
+        beforeCreatedAt: lastItem.created_at,
+        beforeId: lastItem.id,
+      };
+    },
   });
+
+  const items = data ? data.pages.flatMap((page) => page) : [];
 
   const hasActiveFilters = Boolean(
     keyword.trim() || status !== "all" || category !== "all" || location !== "all"
@@ -179,7 +212,7 @@ export default function Items() {
         <div className="mt-16 rounded-3xl border border-dashed border-border/60 bg-card/20 p-12 text-center">
           <p className="font-display text-2xl font-semibold tracking-tight">Couldn’t load the board</p>
           <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">
-            {error instanceof Error ? error.message : "Please try again."}
+            {(error as any)?.message || (error instanceof Error ? error.message : "Please try again.")}
           </p>
           <button
             type="button"
@@ -212,13 +245,46 @@ export default function Items() {
           </p>
         </div>
       ) : (
-        <div className={`mt-8 grid gap-4 sm:gap-5 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 xl:grid-cols-2"}`}>
-          {items.map((item, i) => (
-            <div key={`${item.id}-${viewMode}`} className="animate-fade-in" style={{ animationDelay: `${Math.min(i, 8) * 0.03}s` }}>
-              <ItemCard {...item} layout={viewMode === "list" ? "list" : "poster"} />
+        <>
+          <div className={`mt-8 grid gap-4 sm:gap-5 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 xl:grid-cols-2"}`}>
+            {items.map((item, i) => (
+              <div key={`${item.id}-${viewMode}`} className="animate-fade-in" style={{ animationDelay: `${Math.min(i, 8) * 0.03}s` }}>
+                <ItemCard {...item} layout={viewMode === "list" ? "list" : "poster"} />
+              </div>
+            ))}
+          </div>
+
+          {hasNextPage && (
+            <div className="mt-12 flex flex-col items-center justify-center">
+              <button
+                type="button"
+                onClick={() => void fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-card/80 px-6 py-2.5 text-sm font-medium text-foreground shadow-sm backdrop-blur-md transition-all hover:bg-accent hover:border-border active:scale-95 disabled:opacity-60 disabled:pointer-events-none"
+              >
+                {isFetchingNextPage ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span>Loading more items...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Load more items</span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </>
+                )}
+              </button>
             </div>
-          ))}
-        </div>
+          )}
+
+          {!hasNextPage && items.length > 20 && (
+            <div className="mt-12 text-center">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                You've reached the end of the board
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

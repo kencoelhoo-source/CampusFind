@@ -92,4 +92,66 @@ describe("Items Page (BrowseBoard State Machine)", () => {
       expect(screen.getByText(/No items listed yet\./i)).toBeInTheDocument();
     });
   });
+
+  it("renders 'Load more items' button when 20 items are returned", async () => {
+    const twentyItems = Array.from({ length: 20 }, (_, i) => ({
+      id: `item-${i + 1}`,
+      title: `Lost Item ${i + 1}`,
+      user_id: "user-test",
+      status: "lost",
+      category: "electronics",
+      created_at: new Date(Date.now() - i * 1000).toISOString(),
+    }));
+
+    mockFetchBrowseItems.mockResolvedValueOnce(twentyItems);
+
+    renderWithProviders(<Items />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Load more items/i)).toBeInTheDocument();
+    });
+  });
+
+  it("fetches the next page with keyset cursor when 'Load more items' is clicked", async () => {
+    const firstPage = Array.from({ length: 20 }, (_, i) => ({
+      id: `item-${i + 1}`,
+      title: `Lost Item ${i + 1}`,
+      user_id: "user-test",
+      status: "lost",
+      category: "electronics",
+      created_at: `2026-09-01T12:00:${i < 10 ? '0' : ''}${i}Z`,
+    }));
+
+    const secondPage = [
+      {
+        id: "item-21",
+        title: "Lost Item 21",
+        user_id: "user-test",
+        status: "lost",
+        category: "electronics",
+        created_at: "2026-09-01T11:00:00Z",
+      },
+    ];
+
+    mockFetchBrowseItems
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce(secondPage);
+
+    renderWithProviders(<Items />);
+
+    const loadMoreButton = await screen.findByText(/Load more items/i);
+    expect(loadMoreButton).toBeInTheDocument();
+
+    fireEvent.click(loadMoreButton);
+
+    await waitFor(() => {
+      expect(mockFetchBrowseItems).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          beforeId: "item-20",
+          beforeCreatedAt: firstPage[19].created_at,
+        })
+      );
+    });
+  });
 });

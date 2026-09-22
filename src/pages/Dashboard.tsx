@@ -89,6 +89,7 @@ async function fetchDashboardData(userId: string): Promise<DashboardData> {
       .from("items")
       .select("id, title, status, created_at, user_id, location, category, held_where, held_at")
       .eq("user_id", userId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false }),
     supabase
       .from("claims")
@@ -361,23 +362,12 @@ export default function Dashboard() {
 
   const deleteItem = async (id: string) => {
     setDeleting(true);
-    const { data: images, error: imagesError } = await supabase.from("item_images").select("storage_path").eq("item_id", id);
-    if (imagesError) {
-      setDeleting(false);
-      toast.error(`Failed to load item images: ${imagesError.message}`);
-      return;
-    }
-
-    if (images && images.length > 0) {
-      const { error: storageError } = await supabase.storage.from("item-images").remove(images.map((image) => image.storage_path));
-      if (storageError) {
-        setDeleting(false);
-        toast.error(`Failed to delete item images: ${storageError.message}`);
-        return;
-      }
-    }
-
-    const { error } = await supabase.from("items").delete().eq("id", id);
+    // Safe soft-delete: updates deleted_at timestamp, which activates the
+    // database background trigger tr_enqueue_deleted_item_media to queue image cleanup
+    const { error } = await supabase
+      .from("items")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id);
     setDeleting(false);
     if (error) {
       toast.error(`Failed to delete item: ${error.message}`);

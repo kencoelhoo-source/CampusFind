@@ -14,6 +14,7 @@ export interface ItemWithImage {
   image_url: string | null;
   user_id: string;
   poster_name: string | null;
+  relevance_score?: number | null;
 }
 
 export interface RawItem {
@@ -28,6 +29,7 @@ export interface RawItem {
   date_occurred: string | null;
   created_at: string;
   user_id: string;
+  relevance_score?: number | null;
 }
 
 export interface ItemFilters {

@@ -34,5 +34,8 @@ jobs:
       - name: TypeScript Strict Typecheck
         run: npx tsc --noEmit
 
+      - name: Unit & Integration Tests
+        run: npm test
+
       - name: Production Bundle Build
         run: npm run build

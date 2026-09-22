@@ -7,7 +7,7 @@ ALTER EXTENSION pg_trgm SET SCHEMA extensions;
 -- 1. Convert frontend read RPCs from SECURITY DEFINER to SECURITY INVOKER
 -- These functions just read public.items which already has RLS policies allowing anon/authenticated read
 ALTER FUNCTION public.browse_public_items(text, text, integer, timestamptz, uuid) SECURITY INVOKER;
-ALTER FUNCTION public.search_public_items(text, text, text, integer, real, timestamptz, uuid) SECURITY INVOKER;
+ALTER FUNCTION public.search_public_items(text, text, text, integer, real, timestamptz, uuid) SECURITY INVOKER SET search_path = public, extensions;
 ALTER FUNCTION public.get_home_stats() SECURITY INVOKER;
 ALTER FUNCTION public.get_public_item(uuid) SECURITY INVOKER;
 ALTER FUNCTION public.get_recent_public_items(integer) SECURITY INVOKER;
@@ -15,6 +15,15 @@ ALTER FUNCTION public.get_related_public_items(uuid, text, text, integer) SECURI
 ALTER FUNCTION public.list_public_item_images(uuid[]) SECURITY INVOKER;
 ALTER FUNCTION public.list_public_items() SECURITY INVOKER;
 ALTER FUNCTION public.list_public_poster_names(uuid[]) SECURITY INVOKER;
+
+-- Explicit deny-all policy on media_cleanup_queue to satisfy linter rule 0008_rls_enabled_no_policy
+-- (Service role key bypasses RLS; public/anon/authenticated roles are fully blocked)
+DROP POLICY IF EXISTS "Deny all public access to media_cleanup_queue" ON public.media_cleanup_queue;
+CREATE POLICY "Deny all public access to media_cleanup_queue"
+ON public.media_cleanup_queue
+FOR ALL
+TO public
+USING (false);
 
 -- 2. Explicitly manage EXECUTE grants for SECURITY DEFINER functions
 -- Supabase linter warns when PUBLIC implicitly has EXECUTE on a SECURITY DEFINER function.

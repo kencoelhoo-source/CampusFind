@@ -607,3 +607,21 @@ When modifying or extending CampusFind:
     - **Listing Unavailable**: Minimalist Apple empty state with clean SF Pro typography and navigation back to active listings.
   - Prominent Apple status banners integrated above active item details when marked `returned` or `claimed`.
 
+### 10.7 V3 Architecture: Keyset Pagination, Soft-Deletion Lifecycle & Security Hardening (September 2026)
+- **Deterministic Keyset Pagination (`browse_public_items` & `search_public_items`)**:
+  - Implemented keyset cursors (`p_before_created_at`, `p_before_id`, `p_before_score`) in PostgreSQL RPCs to eliminate slow `OFFSET / LIMIT` pagination on large datasets.
+  - Frontend upgraded to TanStack Query `useInfiniteQuery` in `Items.tsx` with chunk size of 20 items.
+  - Apple-grade "Load more items" button with tactile loading indicator and "You've reached the end of the board" completion notice.
+- **Backend-Driven Media Lifecycle & Soft-Deletions**:
+  - Safe soft-delete pattern: Frontend `Dashboard.tsx` performs `UPDATE items SET deleted_at = now()` instead of raw SQL `DELETE` or client-side storage removal.
+  - Active listings automatically exclude soft-deleted rows via `.is("deleted_at", null)`.
+  - Database trigger `tr_enqueue_deleted_item_media` fires `AFTER UPDATE` on `public.items`, automatically enqueuing media paths into `public.media_cleanup_queue` with a 30-day safety retention grace period.
+  - Edge Function `purge-expired-media` uses `FOR UPDATE SKIP LOCKED` batch claiming to delete orphaned files from `item-images` Supabase storage bucket without race conditions.
+  - Zero-cost automated daily trigger via GitHub Actions workflow `.github/workflows/cleanup-media.yml`.
+- **Database Security Hardening & Linter Compliance**:
+  - `pg_trgm` extension isolated in `extensions` schema, with `search_public_items` explicitly configured with `SET search_path = public, extensions;` for runtime stability.
+  - Public read RPCs converted from `SECURITY DEFINER` to `SECURITY INVOKER`, honoring standard RLS policies.
+  - Internal functions (`claim_media_cleanup_jobs`, `create_notification`, `enqueue_deleted_item_media`) have `EXECUTE` revoked from `PUBLIC`, `anon`, and `authenticated`.
+  - `media_cleanup_queue` secured with an explicit default-deny RLS policy (`USING (false)`), satisfying Supabase linter rule `0008_rls_enabled_no_policy` while permitting service-role key access.
+
+
