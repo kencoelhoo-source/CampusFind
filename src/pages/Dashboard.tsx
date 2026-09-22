@@ -386,40 +386,50 @@ export default function Dashboard() {
     status: "approved" | "rejected",
     meetup?: string,
   ) => {
-    const payload: Partial<DBClaim> = { status };
-    if (status === "approved" && meetup?.trim()) {
-      payload.meeting_details = meetup.trim();
-      payload.meeting_requested = true;
-    }
+    // 1. Try atomic PostgreSQL stored procedure (single transaction)
+    const { error: rpcError } = await supabase.rpc("resolve_claim", {
+      p_claim_id: claimId,
+      p_action: status,
+      p_meetup: meetup?.trim() || null,
+    });
 
-    const { error } = await supabase.from("claims").update(payload as never).eq("id", claimId);
-    if (error) {
-      toast.error(`Failed to update claim: ${error.message}`);
-      return;
-    }
-
-    if (status === "approved") {
-      const { error: itemError } = await supabase.from("items").update({ status: "claimed" as never }).eq("id", itemId);
-      if (itemError) {
-        toast.error(`Claim updated, but item status failed: ${itemError.message}`);
+    if (rpcError) {
+      console.warn("resolve_claim RPC failed, falling back to client-side resolution:", rpcError);
+      const payload: Partial<DBClaim> = { status };
+      if (status === "approved" && meetup?.trim()) {
+        payload.meeting_details = meetup.trim();
+        payload.meeting_requested = true;
       }
-    }
 
-    const targetClaim = incomingClaims.find((c) => c.id === claimId);
-    if (targetClaim?.user_id) {
-      try {
-        await notifyUser({
-          userId: targetClaim.user_id,
-          title: status === "approved" ? `Claim accepted: "${targetClaim.items?.title || "Item"}"` : `Claim declined: "${targetClaim.items?.title || "Item"}"`,
-          message: status === "approved"
-            ? `Your claim was accepted. ${meetup?.trim() ? meetup.trim() : "Hand it over in a public campus place (library, canteen, or security)."}`
-            : `Your claim for "${targetClaim.items?.title || "Item"}" was declined.`,
-          relatedItemId: itemId,
-          relatedClaimId: claimId,
-          kind: status === "approved" ? "claim_approved" : "claim_rejected",
-        });
-      } catch (notifErr) {
-        console.warn("Could not dispatch notification to claimant:", notifErr);
+      const { error } = await supabase.from("claims").update(payload as never).eq("id", claimId);
+      if (error) {
+        toast.error(`Failed to update claim: ${error.message}`);
+        return;
+      }
+
+      if (status === "approved") {
+        const { error: itemError } = await supabase.from("items").update({ status: "claimed" as never }).eq("id", itemId);
+        if (itemError) {
+          toast.error(`Claim updated, but item status failed: ${itemError.message}`);
+        }
+      }
+
+      const targetClaim = incomingClaims.find((c) => c.id === claimId);
+      if (targetClaim?.user_id) {
+        try {
+          await notifyUser({
+            userId: targetClaim.user_id,
+            title: status === "approved" ? `Claim accepted: "${targetClaim.items?.title || "Item"}"` : `Claim declined: "${targetClaim.items?.title || "Item"}"`,
+            message: status === "approved"
+              ? `Your claim was accepted. ${meetup?.trim() ? meetup.trim() : "Hand it over in a public campus place (library, canteen, or security)."}`
+              : `Your claim for "${targetClaim.items?.title || "Item"}" was declined.`,
+            relatedItemId: itemId,
+            relatedClaimId: claimId,
+            kind: status === "approved" ? "claim_approved" : "claim_rejected",
+          });
+        } catch (notifErr) {
+          console.warn("Could not dispatch notification to claimant:", notifErr);
+        }
       }
     }
 

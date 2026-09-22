@@ -378,6 +378,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      resolve_claim: {
+        Args: {
+          p_claim_id: string
+          p_action: string
+          p_meetup?: string | null
+        }
+        Returns: {
+          status: string
+          claim_id: string
+          item_id: string
+          closed_competing_claims: number
+        }
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:push": "npx supabase db push",
+    "db:lint": "npx supabase db lint"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

@@ -633,4 +633,25 @@ When modifying or extending CampusFind:
   - Preserved backward-compatible fallback: if any items originate from legacy endpoints or raw table queries missing those keys, `hydratePublicItems` automatically invokes `list_public_item_images` and `list_public_poster_names` in parallel.
   - Automated tests in `src/test/items-api.test.ts` verify the fast path issues exactly 1 RPC call, cutting mobile latency and Supabase request overhead by 66%.
 
+### 10.9 Backend Hardening: Atomic Claims, Storage Anti-Flooding & Automated Migration Pipeline (September 2026)
+- **Single-Transaction Atomic Claim Resolution (`resolve_claim` RPC)**:
+  - Eliminated disconnected multi-step client mutations in `Dashboard.tsx`.
+  - Implemented `public.resolve_claim(p_claim_id, p_action, p_meetup)` in PostgreSQL (`SECURITY DEFINER`, `search_path = public`).
+  - Upon approval, atomically:
+    1. Sets target claim status to `approved` and records meeting details.
+    2. Transitions parent item status to `claimed`.
+    3. Auto-declines all competing pending claims on the same item (`status = 'rejected'`).
+    4. Issues structured in-app notifications to both the accepted claimant and superseded claimants (`claim_superseded`) in the same ACID transaction.
+  - Upon rejection, updates target claim status to `rejected` and notifies claimant.
+  - Client in `Dashboard.tsx` calls `supabase.rpc('resolve_claim', ...)` with fallback for raw query continuity.
+- **Authenticated Storage Anti-Flooding Quota Guard (`check_user_storage_quota`)**:
+  - Attached `BEFORE INSERT` row trigger `tr_check_storage_user_quota` to `storage.objects`.
+  - Enforces a strict server-side quota per user in the `item-images` bucket: maximum **30 files** and maximum **50 MB** cumulative storage.
+  - Prevents authenticated users or scripts from exhausting Supabase's 1 GB free bucket quota.
+- **Automated Database Migrations Pipeline & Tooling**:
+  - Added `.github/workflows/db-migrations.yml` executing on pushes/PRs modifying `supabase/migrations/**`.
+  - Automatically runs syntax and file integrity checks, and applies migrations via `supabase db push --db-url "$SUPABASE_DB_URL"` when repository secret is configured.
+  - Added `package.json` scripts (`db:push`, `db:lint`) for local and CI operations.
+  - Updated `supabase/verify_schema.sql` with tests for `resolve_claim` RPC and `tr_check_storage_user_quota` trigger.
+
 

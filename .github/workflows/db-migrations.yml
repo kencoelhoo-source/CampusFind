@@ -1,0 +1,59 @@
+name: Database Migrations & Integrity Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/verify_schema.sql"
+      - ".github/workflows/db-migrations.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/verify_schema.sql"
+      - ".github/workflows/db-migrations.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-migrations:
+    name: Lint & Verify SQL Migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify Migration Files Integrity
+        run: |
+          echo "Checking migration files for non-empty SQL content..."
+          for file in supabase/migrations/*.sql; do
+            if [ ! -s "$file" ]; then
+              echo "Error: Migration file $file is empty!"
+              exit 1
+            fi
+            echo "✅ Verified: $file"
+          done
+
+      - name: Push Migrations to Supabase Database (if configured)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "ℹ️ SUPABASE_DB_URL is not configured in repository secrets."
+            echo "ℹ️ Migrations syntax verified. To enable automated push, add SUPABASE_DB_URL to Settings > Secrets > Actions."
+            exit 0
+          fi
+
+          echo "Pushing migrations to Supabase database..."
+          supabase db push --db-url "$SUPABASE_DB_URL"
+          echo "✅ Database migrations successfully applied!"

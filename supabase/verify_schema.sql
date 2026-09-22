@@ -147,6 +147,18 @@ WITH verification_results AS (
 
   UNION ALL
 
+  SELECT 
+    'Trigger',
+    'tr_check_storage_user_quota on storage.objects',
+    CASE 
+      WHEN EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_check_storage_user_quota')
+      THEN '✅ PASS'
+      ELSE '❌ MISSING (Run storage_quota_and_atomic_claims.sql)'
+    END,
+    'Enforces 30 files / 50MB per-user quota to prevent storage flooding'
+
+  UNION ALL
+
   -- 8. Check Core RPC Functions
   SELECT 
     'RPC Function',
@@ -197,6 +209,14 @@ WITH verification_results AS (
     'claim_media_cleanup_jobs',
     CASE WHEN EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'claim_media_cleanup_jobs') THEN '✅ PASS' ELSE '❌ MISSING' END,
     'Internal worker job claiming RPC'
+
+  UNION ALL
+
+  SELECT 
+    'RPC Function',
+    'resolve_claim',
+    CASE WHEN EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'resolve_claim') THEN '✅ PASS' ELSE '❌ MISSING (Run storage_quota_and_atomic_claims.sql)' END,
+    'Atomic single-transaction claim resolution, item state, and sibling rejection RPC'
 )
 SELECT 
   category,
