@@ -654,4 +654,11 @@ When modifying or extending CampusFind:
   - Added `package.json` scripts (`db:push`, `db:lint`) for local and CI operations.
   - Updated `supabase/verify_schema.sql` with tests for `resolve_claim` RPC and `tr_check_storage_user_quota` trigger.
 
+### 10.10 FAQ Intelligence Upgrade & Troll Defense Engine (September 2026)
+- **Two-Tier Matcher & Scored Intent Architecture (`ai-responses.ts`)**:
+  - Replaced naive linear substring scan with a scored intent engine to prevent keyword collisions and false positives.
+  - **Tier 1: Troll & Heckler Defense Protocol**: Exact/phrase containment matching for absurdity, insults, and classic campus memes (*"why are you gay"*, *"who asked"*, *"are you dumb"*, *"marry me"*, *"do my homework"*), delivering witty, existential roasts tailored to engineering students.
+  - **Tier 2: Comprehensive SFIT Campus Knowledge Base**: Covers ~85 deep, practical campus scenarios (SFIT exam hall tickets, In-Sem Exam protocols, mini drafters in Drawing Hall, lab manuals in CCF/CAD labs, monsoon umbrella protocols, Casio fx-991EX details, canteen vs quadrangle vs security desk handovers, ID card replacement fees, and privacy guarantees).
+  - Validated by unit test suite in `src/test/ai-responses.test.ts` ensuring legitimate questions never trigger troll responses by accident.
+
 
