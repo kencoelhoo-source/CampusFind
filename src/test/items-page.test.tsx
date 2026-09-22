@@ -25,6 +25,18 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
+// Mock AuthContext
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({
+    user: { id: "test-user-id", email: "student@sfit.ac.in" },
+    loading: false,
+    session: null,
+    signInWithGoogle: vi.fn(),
+    signInWithGoogleIdToken: vi.fn(),
+    signOut: vi.fn(),
+  }),
+}));
+
 // Mock the API layer entirely to test UI state machine
 const mockFetchBrowseItems = vi.fn();
 vi.mock("@/features/items/services/itemsApi", () => ({
