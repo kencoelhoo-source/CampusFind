@@ -15,8 +15,7 @@ describe("itemsApi", () => {
   });
 
   describe("fetchBrowseItems routing logic", () => {
-    it("routes to search_public_items when a keyword is provided and hydrated properly", async () => {
-      // Setup mock data for RPC responses
+    it("hydrates items in a single roundtrip when RPC returns image_url and poster_name directly", async () => {
       const mockSearchData = [
         {
           id: "1",
@@ -25,16 +24,12 @@ describe("itemsApi", () => {
           status: "lost",
           category: "electronics",
           relevance_score: 95.5,
+          image_url: "https://example.com/mac.jpg",
+          poster_name: "Ken Coelho",
         },
       ];
 
-      const mockImagesData = [{ item_id: "1", url: "https://example.com/mac.jpg" }];
-      const mockProfilesData = [{ user_id: "user-1", full_name: "Ken Coelho" }];
-
-      vi.mocked(supabase.rpc)
-        .mockResolvedValueOnce({ data: mockSearchData, error: null } as any) // for search_public_items
-        .mockResolvedValueOnce({ data: mockImagesData, error: null } as any) // for list_public_item_images
-        .mockResolvedValueOnce({ data: mockProfilesData, error: null } as any); // for list_public_poster_names
+      vi.mocked(supabase.rpc).mockResolvedValueOnce({ data: mockSearchData, error: null } as any);
 
       const filters = {
         keyword: "  charger  ",
@@ -46,8 +41,9 @@ describe("itemsApi", () => {
 
       const result = await fetchBrowseItems(filters as any);
 
-      // Verify routing
-      expect(supabase.rpc).toHaveBeenNthCalledWith(1, "search_public_items", {
+      // Verify routing: ONLY 1 call made, skipping companion queries!
+      expect(supabase.rpc).toHaveBeenCalledTimes(1);
+      expect(supabase.rpc).toHaveBeenCalledWith("search_public_items", {
         search_query: "charger",
         search_type: "all",
         search_category: "all",
@@ -57,11 +53,36 @@ describe("itemsApi", () => {
         p_before_id: null,
       });
 
-      // Verify hydration
+      // Verify returned data matches
       expect(result.length).toBe(1);
       expect(result[0].image_url).toBe("https://example.com/mac.jpg");
       expect(result[0].poster_name).toBe("Ken Coelho");
       expect(result[0].relevance_score).toBe(95.5);
+    });
+
+    it("falls back to companion RPC hydration when raw items lack metadata", async () => {
+      const rawData = [
+        {
+          id: "2",
+          title: "Keys",
+          user_id: "user-2",
+          status: "lost",
+          category: "keys",
+        },
+      ];
+      const imagesData = [{ item_id: "2", url: "https://example.com/keys.jpg" }];
+      const profilesData = [{ user_id: "user-2", full_name: "Student X" }];
+
+      vi.mocked(supabase.rpc)
+        .mockResolvedValueOnce({ data: rawData, error: null } as any) // search_public_items
+        .mockResolvedValueOnce({ data: imagesData, error: null } as any) // list_public_item_images
+        .mockResolvedValueOnce({ data: profilesData, error: null } as any); // list_public_poster_names
+
+      const result = await fetchBrowseItems({ keyword: "keys", status: "all", category: "all", location: "all" });
+
+      expect(supabase.rpc).toHaveBeenCalledTimes(3);
+      expect(result[0].image_url).toBe("https://example.com/keys.jpg");
+      expect(result[0].poster_name).toBe("Student X");
     });
 
     it("routes to browse_public_items when keyword is empty", async () => {

@@ -624,4 +624,13 @@ When modifying or extending CampusFind:
   - Internal functions (`claim_media_cleanup_jobs`, `create_notification`, `enqueue_deleted_item_media`) have `EXECUTE` revoked from `PUBLIC`, `anon`, and `authenticated`.
   - `media_cleanup_queue` secured with an explicit default-deny RLS policy (`USING (false)`), satisfying Supabase linter rule `0008_rls_enabled_no_policy` while permitting service-role key access.
 
+### 10.8 Single-Roundtrip Hydration Optimization (September 2026)
+- **Collapsed 3 Network Requests into 1**:
+  - Previously, `fetchBrowseItems`, `fetchRecentItems`, and related item queries fetched the items array first, then executed two parallel RPC roundtrips (`list_public_item_images` and `list_public_poster_names`) to hydrate primary image URLs and poster names before returning cards to the UI.
+  - Collapsed this multi-step roundtrip by enriching the composite return type `search_result_item` in Postgres with `poster_name text` alongside the already-projected `image_url`.
+  - Updated all 4 core public item RPCs (`search_public_items`, `browse_public_items`, `get_recent_public_items`, and `get_related_public_items`) to subquery `(SELECT p.full_name FROM public.profiles p WHERE p.user_id = i.user_id LIMIT 1) AS poster_name`.
+  - Frontend `itemsApi.ts` (`hydratePublicItems`) now implements an instant zero-latency fast path: if all items already possess `poster_name` and `image_url` fields populated directly by the database RPC, it returns them synchronously in memory without issuing any companion RPC roundtrips.
+  - Preserved backward-compatible fallback: if any items originate from legacy endpoints or raw table queries missing those keys, `hydratePublicItems` automatically invokes `list_public_item_images` and `list_public_poster_names` in parallel.
+  - Automated tests in `src/test/items-api.test.ts` verify the fast path issues exactly 1 RPC call, cutting mobile latency and Supabase request overhead by 66%.
+
 

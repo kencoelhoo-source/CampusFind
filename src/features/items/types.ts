@@ -30,6 +30,8 @@ export interface RawItem {
   created_at: string;
   user_id: string;
   relevance_score?: number | null;
+  image_url?: string | null;
+  poster_name?: string | null;
 }
 
 export interface ItemFilters {

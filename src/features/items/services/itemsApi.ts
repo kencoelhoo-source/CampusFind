@@ -5,6 +5,23 @@ import { rankItemsByQuery } from "../utils/search-engine";
 async function hydratePublicItems(items: RawItem[]): Promise<ItemWithImage[]> {
   if (items.length === 0) return [];
 
+  // Single-Roundtrip Fast Path:
+  // If the database RPC already populated poster_name and image_url, return immediately in memory!
+  const allPopulated = items.every(
+    (item) => item.poster_name !== undefined && item.image_url !== undefined
+  );
+
+  if (allPopulated) {
+    return items.map((item) => ({
+      ...item,
+      status: item.status as ItemWithImage["status"],
+      image_url: item.image_url ?? null,
+      poster_name: item.poster_name ?? null,
+      relevance_score: item.relevance_score ?? null,
+    }));
+  }
+
+  // Fallback path: Only used when querying raw tables directly or legacy RPCs
   const itemIds = items.map((item) => item.id);
   const userIds = Array.from(new Set(items.map((item) => item.user_id)));
 
@@ -28,8 +45,8 @@ async function hydratePublicItems(items: RawItem[]): Promise<ItemWithImage[]> {
   return items.map((item) => ({
     ...item,
     status: item.status as ItemWithImage["status"],
-    image_url: imageMap.get(item.id) || null,
-    poster_name: profileMap.get(item.user_id) || null,
+    image_url: item.image_url ?? imageMap.get(item.id) ?? null,
+    poster_name: item.poster_name ?? profileMap.get(item.user_id) ?? null,
     relevance_score: item.relevance_score ?? null,
   }));
 }

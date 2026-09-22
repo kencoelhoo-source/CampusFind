@@ -39,7 +39,8 @@ CREATE TYPE public.search_result_item AS (
     date_occurred date,
     image_url text,
     image_count int,
-    relevance_score float4
+    relevance_score float4,
+    poster_name text
 );
 
 -- Search RPC: relevance ranked
@@ -93,7 +94,8 @@ BEGIN
     f.id, f.created_at, f.user_id, f.title, f.description, f.category, f.location, f.status, f.date_occurred,
     (SELECT url FROM public.item_images img WHERE img.item_id = f.id ORDER BY created_at ASC LIMIT 1) as image_url,
     (SELECT count(*)::int FROM public.item_images img WHERE img.item_id = f.id) as image_count,
-    f.relevance_score::float4
+    f.relevance_score::float4,
+    (SELECT p.full_name FROM public.profiles p WHERE p.user_id = f.user_id LIMIT 1) as poster_name
   FROM filtered f
   ORDER BY f.relevance_score DESC, f.created_at DESC, f.id DESC
   LIMIT p_limit;
@@ -117,7 +119,8 @@ AS $$
     i.id, i.created_at, i.user_id, i.title, i.description, i.category, i.location, i.status, i.date_occurred,
     (SELECT url FROM public.item_images img WHERE img.item_id = i.id ORDER BY created_at ASC LIMIT 1) as image_url,
     (SELECT count(*)::int FROM public.item_images img WHERE img.item_id = i.id) as image_count,
-    0.0::float4 as relevance_score
+    0.0::float4 as relevance_score,
+    (SELECT p.full_name FROM public.profiles p WHERE p.user_id = i.user_id LIMIT 1) as poster_name
   FROM public.items i
   WHERE i.deleted_at IS NULL
     AND (search_type = 'all' OR i.status::text = search_type)
@@ -142,7 +145,8 @@ AS $$
     i.id, i.created_at, i.user_id, i.title, i.description, i.category, i.location, i.status, i.date_occurred,
     (SELECT url FROM public.item_images img WHERE img.item_id = i.id ORDER BY created_at ASC LIMIT 1) as image_url,
     (SELECT count(*)::int FROM public.item_images img WHERE img.item_id = i.id) as image_count,
-    0.0::float4 as relevance_score
+    0.0::float4 as relevance_score,
+    (SELECT p.full_name FROM public.profiles p WHERE p.user_id = i.user_id LIMIT 1) as poster_name
   FROM public.items i
   WHERE i.deleted_at IS NULL
   ORDER BY i.created_at DESC, i.id DESC
@@ -182,7 +186,8 @@ AS $$
     i.id, i.created_at, i.user_id, i.title, i.description, i.category, i.location, i.status, i.date_occurred,
     (SELECT url FROM public.item_images img WHERE img.item_id = i.id ORDER BY created_at ASC LIMIT 1) as image_url,
     (SELECT count(*)::int FROM public.item_images img WHERE img.item_id = i.id) as image_count,
-    0.0::float4 as relevance_score
+    0.0::float4 as relevance_score,
+    (SELECT p.full_name FROM public.profiles p WHERE p.user_id = i.user_id LIMIT 1) as poster_name
   FROM public.items i
   WHERE i.id != p_item_id
     AND i.deleted_at IS NULL
