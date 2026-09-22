@@ -6,6 +6,11 @@
 > **Production Status**: Production-Ready / Continuous Deployment on Vercel  
 > **Cost Profile**: **Strictly $0.00 / month (100% Free Forever Tier Architecture)**  
 > **Last Updated**: September 2026
+>
+> **Companion Files**:  
+> - `ARCHITECTURE.md` — Deep-dive architecture reference for AI agents & contributors (30 sections, every subsystem documented)  
+> - `.agents/rules/readme-update.md` — Rule: when and how to update `README.md` after codebase changes  
+> - `README.md` — Public-facing project documentation (no AI checker / AI readiness section)
 
 ---
 

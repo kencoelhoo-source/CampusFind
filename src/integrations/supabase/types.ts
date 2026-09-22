@@ -272,6 +272,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      search_public_items: {
+        Args: { search_query: string; search_type?: string; search_category?: string; p_limit?: number; p_before_score?: number | null; p_before_created_at?: string | null; p_before_id?: string | null }
+        Returns: { id: string; created_at: string; user_id: string; title: string; description: string | null; category: string; location: string | null; status: string; date_occurred: string | null; held_where: string | null; held_at: string | null; is_public: boolean; image_url: string | null; image_count: number; relevance_score: number }[]
+      }
+      browse_public_items: {
+        Args: { search_type?: string; search_category?: string; p_limit?: number; p_before_created_at?: string | null; p_before_id?: string | null }
+        Returns: { id: string; created_at: string; user_id: string; title: string; description: string | null; category: string; location: string | null; status: string; date_occurred: string | null; held_where: string | null; held_at: string | null; is_public: boolean; image_url: string | null; image_count: number; relevance_score: number }[]
+      }
+      get_recent_public_items: {
+        Args: { p_limit?: number }
+        Returns: { id: string; created_at: string; user_id: string; title: string; description: string | null; category: string; location: string | null; status: string; date_occurred: string | null; held_where: string | null; held_at: string | null; is_public: boolean; image_url: string | null; image_count: number; relevance_score: number }[]
+      }
+      get_home_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: { total_active: number; total_resolved: number; recent_activity: number }[]
+      }
+      get_related_public_items: {
+        Args: { p_item_id: string; p_category: string; p_status: string; p_limit?: number }
+        Returns: { id: string; created_at: string; user_id: string; title: string; description: string | null; category: string; location: string | null; status: string; date_occurred: string | null; held_where: string | null; held_at: string | null; is_public: boolean; image_url: string | null; image_count: number; relevance_score: number }[]
+      }
       list_public_items: {
         Args: Record<PropertyKey, never>
         Returns: {

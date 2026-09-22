@@ -35,4 +35,7 @@ export interface ItemFilters {
   status: string;
   category: string;
   location: string;
+  beforeScore?: number | null;
+  beforeCreatedAt?: string | null;
+  beforeId?: string | null;
 }

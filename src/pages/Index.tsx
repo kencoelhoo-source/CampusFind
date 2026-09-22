@@ -126,7 +126,7 @@ export default function Index() {
   });
 
   const items = data?.items || [];
-  const stats = data?.stats || { total: 0, lost: 0, found: 0 };
+  const stats = data?.stats || { totalActive: 0, totalResolved: 0, recentActivity: 0 };
 
   return (
     <div>
@@ -213,9 +213,9 @@ export default function Index() {
           <div className="rounded-2xl border border-border/50 bg-card/40 px-2 py-3.5 backdrop-blur-sm sm:rounded-3xl sm:p-8 md:p-12">
             <div className="grid grid-cols-3 divide-x divide-border/40">
               {[
-                { value: stats.total, short: "Board", label: "On the board", sub: "Active community reports" },
-                { value: stats.lost, short: "Lost", label: "Still lost", sub: "Awaiting recovery on campus" },
-                { value: stats.found, short: "Found", label: "Waiting to return", sub: "Safely secured by finders" },
+                { value: stats.totalActive, short: "Active", label: "Active cases", sub: "Currently lost or found items" },
+                { value: stats.totalResolved, short: "Resolved", label: "Resolved", sub: "Successfully returned to owners" },
+                { value: stats.recentActivity, short: "Recent", label: "This week", sub: "Items posted in the last 7 days" },
               ].map((stat, i) => (
                 <div
                   key={stat.label}

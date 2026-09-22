@@ -254,22 +254,39 @@ export default function PostItem() {
 
       const failedUploads: string[] = [];
 
-      for (const file of images) {
-        const ext =
-          file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-        const path = `${user.id}/${item.id}/${crypto.randomUUID()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from("item-images").upload(path, file);
-        if (uploadError) {
-          failedUploads.push(file.name);
-          continue;
-        }
-
-        const { data: urlData } = supabase.storage.from("item-images").getPublicUrl(path);
-        await supabase.from("item_images").insert({
-          item_id: item.id,
-          storage_path: path,
-          url: urlData.publicUrl,
+      if (images.length > 0) {
+        const { data: authData, error: authError } = await supabase.functions.invoke("upload-authorize", {
+          body: {
+            itemId: item.id,
+            files: images.map(f => ({ name: f.name, type: f.type, size: f.size }))
+          }
         });
+
+        if (authError || !authData?.urls) {
+          toast.error("Failed to authorize image uploads");
+        } else {
+          const urls = authData.urls;
+          for (let i = 0; i < images.length; i++) {
+            const file = images[i];
+            const { path, token } = urls[i];
+            
+            const { error: uploadError } = await supabase.storage
+              .from("item-images")
+              .uploadToSignedUrl(path, token, file);
+              
+            if (uploadError) {
+              failedUploads.push(file.name);
+              continue;
+            }
+
+            const { data: urlData } = supabase.storage.from("item-images").getPublicUrl(path);
+            await supabase.from("item_images").insert({
+              item_id: item.id,
+              storage_path: path,
+              url: urlData.publicUrl,
+            });
+          }
+        }
       }
 
       await Promise.all([

@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { ItemFilters, ItemWithImage, RawItem } from "../types";
-import { rankItemsByQuery } from "../utils/search-engine";
 
 async function hydratePublicItems(items: RawItem[]): Promise<ItemWithImage[]> {
   if (items.length === 0) return [];
@@ -34,55 +33,51 @@ async function hydratePublicItems(items: RawItem[]): Promise<ItemWithImage[]> {
 }
 
 export async function fetchRecentItems(limit = 8) {
-  const { data, error } = await supabase.rpc("list_public_items");
+  const { data, error } = await supabase.rpc("get_recent_public_items", { p_limit: limit });
   if (error) throw error;
 
-  const rows = ((data || []) as RawItem[])
-    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
-    .slice(0, limit);
-
-  return hydratePublicItems(rows);
+  return hydratePublicItems(data as RawItem[]);
 }
 
 export async function fetchBrowseItems(filters: ItemFilters) {
-  const { data, error } = await supabase.rpc("list_public_items");
-  if (error) throw error;
-
-  let rows = (data || []) as RawItem[];
-
-  if (filters.status !== "all") {
-    rows = rows.filter((item) => item.status === filters.status);
+  if (filters.keyword && filters.keyword.trim().length > 0) {
+    const { data, error } = await supabase.rpc("search_public_items", {
+      search_query: filters.keyword.trim(),
+      search_type: filters.status === "all" ? 'all' : filters.status,
+      search_category: filters.category === "all" ? 'all' : filters.category,
+      p_limit: 20,
+      p_before_score: filters.beforeScore || null,
+      p_before_created_at: filters.beforeCreatedAt || null,
+      p_before_id: filters.beforeId || null,
+    });
+    if (error) throw error;
+    return hydratePublicItems((data || []) as RawItem[]);
+  } else {
+    const { data, error } = await supabase.rpc("browse_public_items", {
+      search_type: filters.status === "all" ? 'all' : filters.status,
+      search_category: filters.category === "all" ? 'all' : filters.category,
+      p_limit: 20,
+      p_before_created_at: filters.beforeCreatedAt || null,
+      p_before_id: filters.beforeId || null,
+    });
+    if (error) throw error;
+    return hydratePublicItems((data || []) as RawItem[]);
   }
-  if (filters.category !== "all") {
-    rows = rows.filter((item) => item.category === filters.category);
-  }
-  if (filters.location !== "all") {
-    rows = rows.filter((item) => item.location === filters.location || item.held_at === filters.location);
-  }
-
-  rows.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-  rows = rows.slice(0, 100);
-
-  let hydrated = await hydratePublicItems(rows);
-  const cleanKeyword = filters.keyword.trim();
-  if (cleanKeyword && hydrated.length > 0) {
-    hydrated = rankItemsByQuery(hydrated, cleanKeyword);
-  }
-  return hydrated;
 }
 
 export async function fetchHomeStats() {
-  const { data, error } = await supabase.rpc("list_public_items");
+  const { data, error } = await supabase.rpc("get_home_stats");
   if (error) throw error;
 
-  const rows = data || [];
-  const lost = rows.filter((item) => item.status === "lost").length;
-  const found = rows.filter((item) => item.status === "found").length;
+  const row = (data || [])[0];
+  if (!row) {
+    return { totalActive: 0, totalResolved: 0, recentActivity: 0 };
+  }
 
   return {
-    total: lost + found,
-    lost,
-    found,
+    totalActive: Number(row.total_active),
+    totalResolved: Number(row.total_resolved),
+    recentActivity: Number(row.recent_activity),
   };
 }
 
@@ -92,7 +87,6 @@ export async function fetchItemDetail(id: string) {
 
   const item = (data || [])[0] as RawItem | undefined;
   if (!item) {
-    // Check if availability RPC or direct select can reveal item state
     try {
       const { data: avail } = await supabase.rpc("check_item_availability", { _id: id });
       const row = (avail || [])[0];
@@ -113,7 +107,7 @@ export async function fetchItemDetail(id: string) {
         };
       }
     } catch {
-      // ignore if RPC not yet created
+      // ignore
     }
 
     return {
@@ -128,12 +122,10 @@ export async function fetchItemDetail(id: string) {
   const [imagesRes, namesRes, relatedRes] = await Promise.all([
     supabase.rpc("list_public_item_images", { _ids: [id] }),
     supabase.rpc("list_public_poster_names", { _ids: [item.user_id] }),
-    supabase.rpc("list_public_items"),
+    supabase.rpc("get_related_public_items", { p_category: item.category as any, p_status: item.status, p_item_id: id, p_limit: 4 }),
   ]);
 
-  const related = ((relatedRes.data || []) as RawItem[])
-    .filter((row) => row.id !== id && row.category === item.category)
-    .slice(0, 4);
+  const related = (relatedRes.data || []) as RawItem[];
 
   return {
     item,
