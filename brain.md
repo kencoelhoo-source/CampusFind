@@ -657,8 +657,12 @@ When modifying or extending CampusFind:
 ### 10.10 FAQ Intelligence Upgrade & Troll Defense Engine (September 2026)
 - **Two-Tier Matcher & Scored Intent Architecture (`ai-responses.ts`)**:
   - Replaced naive linear substring scan with a scored intent engine to prevent keyword collisions and false positives.
-  - **Tier 1: Troll & Heckler Defense Protocol**: Exact/phrase containment matching for absurdity, insults, and classic campus memes (*"why are you gay"*, *"who asked"*, *"are you dumb"*, *"marry me"*, *"do my homework"*), delivering witty, existential roasts tailored to engineering students.
-  - **Tier 2: Comprehensive SFIT Campus Knowledge Base**: Covers ~85 deep, practical campus scenarios (SFIT exam hall tickets, In-Sem Exam protocols, mini drafters in Drawing Hall, lab manuals in CCF/CAD labs, monsoon umbrella protocols, Casio fx-991EX details, canteen vs quadrangle vs security desk handovers, ID card replacement fees, and privacy guarantees).
-  - Validated by unit test suite in `src/test/ai-responses.test.ts` ensuring legitimate questions never trigger troll responses by accident.
+  - **Tier 1: Troll, Pop Culture & Meme Defense Protocol**:
+    - Multi-variant existential comebacks that rotate so repeated queries yield fresh, ruthless roasts, covering creator inquiries (balanced between humble dedication praise and sharp developer banter), viral pop culture, troll defense, and dignity-crushing counter-measures for abusive language with token-boundary matching.
+  - **Tier 2: Comprehensive SFIT Campus Knowledge Base**: Covers deep, practical campus scenarios (SFIT exam hall tickets, In-Sem Exam protocols, mini drafters in Drawing Hall, lab manuals in computer/CAD labs, monsoon umbrella protocols, Casio fx-991EX details, canteen vs quadrangle vs security desk handovers, ID card replacement fees, and privacy guarantees).
+  - **Strict Institutional Standards**:
+    - Completely removed all "CCF lab assistant" references; all physical handovers and fallback referrals point strictly to the **Main Security Cabin on the ground floor** or the **main administrative office**.
+    - Strict SFIT nomenclature enforced throughout; zero references to "Mumbai University" or "autonomous".
+  - Validated by unit test suite in `src/test/ai-responses.test.ts` ensuring legitimate questions never trigger troll responses by accident, and all meme triggers return sharp existential comebacks.
 
 

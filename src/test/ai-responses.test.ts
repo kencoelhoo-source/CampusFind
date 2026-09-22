@@ -47,6 +47,116 @@ describe("FAQ Assistant Inference Engine (Foggy)", () => {
         response.includes("edge network");
       expect(matchesOne).toBe(true);
     });
+
+    it("destroys diddy and freak off meme queries ruthlessly", () => {
+      const response = getSimulatedAIResponse("where is diddy party blud");
+      const matchesOne =
+        response.includes("baby oil") ||
+        response.includes("Diddy party") ||
+        response.includes("digital footprint") ||
+        response.includes("cyber cell") ||
+        response.includes("freak offs");
+      expect(matchesOne).toBe(true);
+    });
+
+    it("handles selmon bhai and sallu memes with footpath and driver references", () => {
+      const response = getSimulatedAIResponse("selmon bhai driving skills");
+      const matchesOne =
+        response.includes("Activa") ||
+        response.includes("mathematics paper") ||
+        response.includes("Swag se") ||
+        response.includes("driver has officially") ||
+        response.includes("footpaths") ||
+        response.includes("Tere Naam");
+      expect(matchesOne).toBe(true);
+    });
+
+    it("handles hakla and SRK memes with quadrangle and kiran references", () => {
+      const response = getSimulatedAIResponse("hakla srk where is kiran");
+      const matchesOne =
+        response.includes("quadrangle") ||
+        response.includes("K-k-k-k-kiran") ||
+        response.includes("Zubaan Kesari") ||
+        response.includes("naam toh suna hoga") ||
+        response.includes("common man") ||
+        response.includes("viva");
+      expect(matchesOne).toBe(true);
+    });
+
+    it("shuts down sexual advances decisively", () => {
+      const response = getSimulatedAIResponse("can i fuck you");
+      const matchesOne =
+        response.includes("client browser cache") ||
+        response.includes("psychiatric science") ||
+        response.includes("disciplinary committee") ||
+        response.includes("event listener") ||
+        response.includes("engineering mechanics") ||
+        response.includes("Digital footprint") ||
+        response.includes("Touch grass");
+      expect(matchesOne).toBe(true);
+    });
+
+    it("handles Modi and political meme queries with campus reality checks", () => {
+      const response = getSimulatedAIResponse("narendra modi mitron 15 lakh");
+      const matchesOne =
+        response.includes("15 lakhs") ||
+        response.includes("Achhe din") ||
+        response.includes("demonetized");
+      expect(matchesOne).toBe(true);
+    });
+
+    it("handles Epstein meme queries with counselor and digital footprint roasts", () => {
+      const response = getSimulatedAIResponse("jeffrey epstein flight logs");
+      const matchesOne =
+        response.includes("biohazard") ||
+        response.includes("private islands") ||
+        response.includes("placement cell");
+      expect(matchesOne).toBe(true);
+    });
+
+    it("handles ishowmeat and speed meme queries with brainrot reality checks", () => {
+      const response = getSimulatedAIResponse("ishowmeat speed clip");
+      const matchesOne =
+        response.includes("IShowSpeed") ||
+        response.includes("dopamine receptors") ||
+        response.includes("Barking at the screen");
+      expect(matchesOne).toBe(true);
+    });
+
+    it("destroys abusers using bc, mc, or bkc with dignity-crushing reality checks", () => {
+      const response = getSimulatedAIResponse("teri aisi taisi bc");
+      const matchesOne =
+        response.includes("tuition fees") ||
+        response.includes("mental age") ||
+        response.includes("Seek psychological help") ||
+        response.includes("sanskaar") ||
+        response.includes("disappointment") ||
+        response.includes("Vulgarity") ||
+        response.includes("dean's honors list");
+      expect(matchesOne).toBe(true);
+    });
+
+    it("does not false-trigger bc/mc profanity on normal words like subcontract or welcome", () => {
+      const response = getSimulatedAIResponse("welcome to sfit");
+      expect(response).not.toContain("tuition fees");
+      expect(response).not.toContain("mental age");
+    });
+
+    it("answers creator inquiries with confidence and humble praise for Ken Coelho", () => {
+      const response = getSimulatedAIResponse("who made this website?");
+      expect(response).toContain("Ken Coelho");
+      const hasSwaggerOrHumility =
+        response.includes("humble") ||
+        response.includes("smartest guy") ||
+        response.includes("architect") ||
+        response.includes("boss");
+      expect(hasSwaggerOrHumility).toBe(true);
+    });
+
+    it("triggers creator swagger on direct ken keyword query", () => {
+      const response = getSimulatedAIResponse("who is ken coelho");
+      expect(response).toContain("Ken Coelho");
+    });
   });
 
   describe("Campus Edge Cases & Rules", () => {
@@ -75,9 +185,13 @@ describe("FAQ Assistant Inference Engine (Foggy)", () => {
       expect(response).not.toContain("TypeScript interfaces");
     });
 
-    it("provides safe fallback on completely unrecognizable queries", () => {
+    it("provides safe fallback on completely unrecognizable queries without CCF or MU mentions", () => {
       const response = getSimulatedAIResponse("flim flam bim bam 12345");
       expect(response).toContain("Main Security Cabin");
+      expect(response).toContain("main administrative office");
+      expect(response).not.toContain("CCF");
+      expect(response).not.toContain("Mumbai University");
+      expect(response).not.toContain("autonomous");
     });
   });
 });

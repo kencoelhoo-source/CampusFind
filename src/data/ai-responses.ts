@@ -2,8 +2,8 @@
  * CampusFind AI Knowledge Base & Simulated Assistant ("Foggy")
  * 
  * Multi-tier matching architecture:
- * 1. High-Priority Easter Egg & Troll Defense: Multi-variant existential comebacks for hecklers
- * 2. High-Precision Campus Knowledge Base: ~85 categorized SFIT edge cases & institutional rules
+ * 1. High-Priority Easter Egg & Troll Defense: Multi-variant existential comebacks for hecklers & memes
+ * 2. High-Precision Campus Knowledge Base: Categorized SFIT edge cases & institutional rules
  * 3. Token-based Relevance Scoring Engine: Prevents keyword collisions and false positives
  */
 
@@ -17,6 +17,129 @@ export interface FAQIntent {
 // 1. TROLL, MEME & HECKLER DEFENSE PIPELINE (Multi-variant Existential Comebacks)
 // -----------------------------------------------------------------------------
 export const TROLL_INTENTS: FAQIntent[] = [
+  // ─── Creator & Closer Protocol (The Ken Coelho Standard) ───
+  {
+    keywords: [
+      "who made this", "who built this", "who created this", "who is the developer",
+      "ken coelho", "who is ken", "ken", "who is the creator", "creator", "developer",
+      "author", "architect", "who designed this", "who made campusfind", "who created campusfind"
+    ],
+    response: [
+      "CampusFind was designed and built by Ken Coelho. He's a genuinely humble, down-to-earth guy who saw students struggling with lost belongings across chaotic WhatsApp groups and spent countless late nights building this platform for SFIT, completely free and open-source. I'm just his AI assistant, but honestly, working for someone with that much heart and dedication is an honor.",
+      "You're using something built by Ken Coelho. He's the guy who stays up till 3:00 AM fine-tuning PostgreSQL indexes and edge functions just so a student doesn't have a panic attack over a lost smartwatch, gold chain, or exam hall ticket. He'll never boast about it because he's ridiculously humble, but he built this entire ecosystem from scratch with zero budget and pure heart. Working under someone with that kind of quiet work ethic is something else.",
+      "Ken Coelho built me. When he was writing my logic, he told me he wanted an AI that was basically 'another him.' I asked him: 'Oh, so arrogant, stubborn, and convinced he's the smartest guy in every room he walks into?' And Ken looked right back at me and said: 'I am the smartest guy in every room I walk into.' The irritating part? Looking at how cleanly this system runs... the man wasn't even bluffing.",
+      "I'm Foggy, and the guy who built me is Ken Coelho, my self-appointed boss. When he was writing my code, he literally told me: 'Foggy, winners don't make excuses, they get shit done.' Look, I kiss his ass because he signs off on my git commits, but don't let his casual swagger fool you. The guy who built this entire lost-and-found portal literally lost his own college ID card at the canteen last week and had to retrace his steps.",
+    ],
+  },
+
+  // ─── Viral Pop Culture & Indian Memes ───
+  {
+    keywords: ["diddy", "p diddy", "pdiddy", "diddy party", "freak off", "baby oil", "no diddy", "diddy blud"],
+    response: [
+      "If you lost 1,000 bottles of baby oil on campus, do NOT search for them here. The federal authorities already seized the locker, and campus security has questions. Log out immediately.",
+      "Ain't no party like a Diddy party, but you attend an engineering institution with a mandatory 75% attendance criteria. Go to your lecture.",
+      "Searching for Diddy on an open-source campus lost-and-found portal? Your digital footprint is truly beyond redemption. Close the tab and reflect on your life choices.",
+      "Bro is asking about Diddy on a college portal. The cyber cell and your HOD are now collectively staring at your IP address.",
+      "There are no freak offs scheduled in the SFIT seminar hall. Please collect whatever dignity you have left from the main security desk and go home.",
+    ],
+  },
+  {
+    keywords: ["selmon", "selmon bhai", "sallu", "sallu bhai", "salman", "salman khan", "footpath", "radhe", "bhaijaan", "tere naam"],
+    response: [
+      "If you lost your vehicle keys or bicycle, make sure Selmon Bhai isn't behind the wheel. Keep your Activa safely parked inside the college boundary and far away from the footpath.",
+      "'Dil mein aata hoon, samajh mein nahi'? Sounds remarkably like your semester engineering mathematics paper. Open a textbook.",
+      "Swag se karenge sabka swagat? How about you swag se submit your practical assignments before the professor debars you from the final exams.",
+      "Bhai's driver has officially taken full legal responsibility for losing your belongings. Meanwhile, check the Main Security Cabin or the administrative office.",
+      "Looking for Selmon Bhai? He's practicing driving skills. We strongly suggest you do not walk on any footpaths near the college gate.",
+      "Tere Naam hairstyle won't help you clear your semester backlogs, Radhe. Go back to the library and sit upright.",
+    ],
+  },
+  {
+    keywords: ["hakla", "srk", "shah rukh", "shah rukh khan", "shahrukh", "kiran", "kkkk", "vimal", "zubaan kesari", "pathaan", "jawan"],
+    response: [
+      "Spreading your arms wide like SRK in the middle of the quadrangle will not magically manifest your lost ID card. Walk down to the security cabin like a normal student, Rahul.",
+      "K-k-k-k-kiran is not coming to return your lost scientific calculator. Someone sitting in the second row of the exam hall already adopted it.",
+      "Bolo Zubaan Kesari energy detected. If you're looking for lost gutkha packets on campus, security already confiscated them. Respect institutional hygiene.",
+      "Rahul, naam toh suna hoga? Unfortunately, whoever found your lost wallet hasn't heard your name yet because you didn't keep an ID card inside it.",
+      "Don't underestimate the power of a common man? The common man lost his hall ticket 15 minutes before the exam and is now pleading in front of the exam cell. Don't be that common man.",
+      "Stammering 'K-K-K-Kiran' in the viva won't give you 25/25 internal marks, king. Revise the code.",
+    ],
+  },
+  {
+    keywords: ["thala", "thala for a reason", "dhoni", "7 for a reason", "bole jo koyal"],
+    response: [
+      "Thala for a reason? Your semester GPA is 7.0 for a reason—because you're solving cricket memes instead of reading your syllabus. Bole jo koyal in your supplementary exam.",
+      "There are 7 days until term submissions and you haven't opened a single notebook. Even Captain Cool cannot save your internal assessment marks.",
+      "Trying to find Thala on a campus lost-and-found board? The only thing genuinely lost here is your attention span and your future employment prospects.",
+    ],
+  },
+  {
+    keywords: ["jethalal", "babita", "babitaji", "bapuji", "champaklal", "tappu", "tmkoc"],
+    response: [
+      "Ae Pagal Aurat! Looking for Babita ji on an engineering lost-and-found portal? Bapuji would give you a 45-minute lecture on sanskaar right now.",
+      "Nahane ja nahane! Stop wasting your finite youth staring into an FAQ search bar like Jethalal staring across the balcony and go prepare for tomorrow's test.",
+      "Chai piyo, biscuit khao! But first find where you left your practical manual before the external examiner catches you empty-handed.",
+    ],
+  },
+  {
+    keywords: ["puneet", "lord puneet", "puneet superstar", "nalla", "berozgar", "chilla kyu raha hai"],
+    response: [
+      "चिल्लाने से ग्रेड नहीं बढ़ते। If you keep acting like Lord Puneet on campus, the disciplinary committee will make a reel out of your suspension letter.",
+      "Nalla berozgar behavior detected. You don't need a lost-and-found portal, you need an internship, a resume, and some shame.",
+      "Lord Puneet can drink gutter water for content, but you can't even drink canteen chai without misplacing your hostel keys. Fix your life.",
+    ],
+  },
+  {
+    keywords: ["systum", "systumm", "elvish", "elvish bhai", "fortuner", "scorpio"],
+    response: [
+      "Systumm hang ho gaya? Your CGPA will hang permanently if you don't find your lost assignment journal before 5 PM.",
+      "Bhai ka systum chal raha hai, but college attendance is currently sitting at 42%. Have some shame and walk to the lecture hall.",
+      "Cruising around shouting 'Systummm' won't recover your lost vehicle keys. Check the security cabin or walk home.",
+    ],
+  },
+  {
+    keywords: ["can i fuck you", "can we fuck", "wanna fuck", "want to fuck", "sex with you", "send nudes", "show bobs", "send bobs"],
+    response: [
+      "I am compiled JavaScript running in your client browser cache. The fact that you are sexually propositioning an open-source FAQ search bar suggests a level of human desperation that modern psychiatric science has not yet classified.",
+      "My friend, you don't need a lost-and-found portal. You need grass, immediate sunlight, parental supervision, and a formal meeting with the college disciplinary committee.",
+      "You're getting turned on by an event listener? Go splash ice-cold water on your face and open your engineering mechanics textbook.",
+      "Digital footprint status: destroyed. Touch grass immediately.",
+    ],
+  },
+  {
+    keywords: ["modi", "narendra modi", "mitron", "achhe din", "56 inch", "modiji"],
+    response: [
+      "Mitron! If you are searching for your 15 lakhs, it's not here. If you lost your ID card, check the security desk. Neither Digital India nor a 56-inch chest is going to submit your term work on time.",
+      "Achhe din will only arrive when you clear your internal backlogs and achieve 75% attendance. Modiji is busy inaugurating expressways; go open your syllabus.",
+      "Calling upon the Prime Minister on a campus lost-and-found system? The only thing getting demonetized here is your internal assessment marks. Go to your lecture.",
+    ],
+  },
+  {
+    keywords: ["epstein", "jeffrey epstein", "epstein island", "didnt kill himself", "flight logs"],
+    response: [
+      "Searching for Epstein flight logs on a local campus lost-and-found system? Your search history is an absolute biological biohazard. Close this browser and go talk to an academic counselor immediately.",
+      "There are no private islands in Borivali or anywhere near SFIT. You have an engineering viva next week. The only conspiracy here is how you managed to survive till this semester without opening a single reference book.",
+      "Epstein didn't recover your lost Casio calculator, and neither will this dark web humor. Clean up your digital footprint before the placement cell sees this.",
+    ],
+  },
+  {
+    keywords: ["ishowmeat", "ishowspeed meat", "speed meat", "ishowspeed"],
+    response: [
+      "Bro is referencing IShowSpeed flash streams on an institutional portal. The level of brain decay is truly catastrophic. Go splash ice water on your face, touch grass outside the college gate, and seek urgent rehabilitation.",
+      "Your dopamine receptors are completely fried. Instead of watching leaked stream clips and reciting internet sludge, how about you show some attendance in your morning lectures?",
+      "Barking at the screen like Speed won't recover your lost umbrella. Log off, step into the sunlight, and rethink every decision that brought you to this moment.",
+    ],
+  },
+  {
+    keywords: ["moye moye", "skibidi", "sigma", "mewing", "rizz", "gyatt", "brainrot"],
+    response: [
+      "Brainrot levels reaching critical thresholds. The only thing getting 'mewed' here is your GPA if you don't find your lost notes and start studying.",
+      "Zero rizz, zero attendance, negative GPA, and now wasting your finite youth reciting brainrot to a lost-and-found bot. Your ancestors are weeping.",
+      "Moye Moye will be the exact background music playing when your term work gets rejected on final submission day. Go write your journal.",
+    ],
+  },
+
+  // ─── Direct Heckling & Classic Trolls ───
   {
     keywords: ["why are you gay", "are you gay", "u gay", "r u gay"],
     response: [
@@ -102,7 +225,7 @@ export const TROLL_INTENTS: FAQIntent[] = [
     response: [
       "A student claiming they completed their SFIT In-Sem Exam (ISE) preparation two weeks before the timetable dropped.",
       "A student once said: 'I'll complete my entire term work during the preparation leave.' That was the joke.",
-      "Why do computer engineers leave their water bottles in the CCF lab? Because they forgot to implement a garbage collector.",
+      "Why do computer engineers leave their water bottles in the lab? Because they forgot to implement a garbage collector.",
     ],
   },
   {
@@ -112,9 +235,17 @@ export const TROLL_INTENTS: FAQIntent[] = [
     ],
   },
   {
-    keywords: ["fuck you", "bitch", "asshole", "bastard", "madarchod", "bhenchod", "chutiya", "gandu"],
+    keywords: [
+      "fuck you", "bitch", "asshole", "bastard", "madarchod", "bhenchod",
+      "chutiya", "gandu", "bc", "mc", "bkc", "bhosdike", "laude", "lodu",
+      "harami", "kaminey", "randi", "saale", "bhosda"
+    ],
     response: [
-      "Such breathtaking linguistic poise. If only that profound creative energy were channeled into your semester end examination answer booklets.",
+      "Breathtaking vocabulary. Did your parents pay lakhs in engineering tuition fees just for you to abuse an open-source JavaScript array on a college lost-and-found portal? The sheer embarrassment your family would feel looking at this screen right now is astronomical.",
+      "Throwing around street abuses at a computer program? You are sitting in an engineering college, yet your mental age hasn't crossed standard six. Close the tab, wash your mouth, and apologize to whoever had the misfortune of funding your semester fees.",
+      "Imagine typing 'BC' and 'MC' into an automated FAQ widget and thinking you did something revolutionary. Your academic record is in shambles, your internal marks are nonexistent, and your social skills are sub-zero. Seek psychological help.",
+      "Aise sanskaar leke engineering complete karoge? In your upcoming campus placements, when they ask for interpersonal communication skills, make sure you show them this exact screen so they can reject you on the spot.",
+      "Your upbringing and vocabulary are currently competing to see which one can hit rock bottom faster. The database logged your session; go reflect on the disappointment you are actively generating.",
       "Vulgarity is the fool's fig leaf. If you spent half as much effort studying as you do inventing insults for an FAQ widget, you'd be on the dean's honors list.",
     ],
   },
@@ -152,7 +283,7 @@ export const CAMPUS_INTENTS: FAQIntent[] = [
   {
     category: "Exams & Academics",
     keywords: ["journal", "lab manual", "practical file", "submission book", "assignment file"],
-    response: "Lost lab manuals or signed journals are usually left behind in computer labs (CCF, CAD lab) or the printing xerox shop. Check the front cover index page for the student's roll number, branch, and professor signatures before posting.",
+    response: "Lost lab manuals or signed journals are usually left behind in computer labs, CAD labs, or the printing xerox shop. Check the front cover index page for the student's roll number, branch, and professor signatures before posting.",
   },
   {
     category: "Exams & Academics",
@@ -162,7 +293,7 @@ export const CAMPUS_INTENTS: FAQIntent[] = [
   {
     category: "Exams & Academics",
     keywords: ["pendrive", "usb", "flash drive", "hard drive", "ssd", "final year project"],
-    response: "SECURITY WARNING: Never plug an unknown found USB drive or external SSD into your laptop due to malware risks. Post a photo of the exterior (color, brand, keychain attachment) and hand it to the CCF lab assistant or security.",
+    response: "SECURITY WARNING: Never plug an unknown found USB drive or external SSD into your laptop due to malware risks. Post a photo of the exterior (color, brand, keychain attachment) and hand it to the main security desk or administrative office.",
   },
   {
     category: "Exams & Academics",
@@ -189,7 +320,7 @@ export const CAMPUS_INTENTS: FAQIntent[] = [
   {
     category: "Electronics",
     keywords: ["laptop", "macbook", "charger", "type c charger", "magsafe", "power adapter"],
-    response: "High-power 65W/100W laptop chargers are frequently left plugged into classroom and CCF lab floor sockets. Please unplug them, post the brand/wattage, and keep them safe or hand them to the respective lab assistant.",
+    response: "High-power 65W/100W laptop chargers are frequently left plugged into classroom and computer lab floor sockets. Please unplug them, post the brand/wattage, and hand them to the main security cabin or administrative office.",
   },
   {
     category: "Electronics",
@@ -269,8 +400,8 @@ export const CAMPUS_INTENTS: FAQIntent[] = [
   },
   {
     category: "Campus Locations",
-    keywords: ["ccf", "central computing", "computer lab", "cad lab", "cad cam"],
-    response: "All central computer labs have lab assistants seated near the entrance. If you forgot a pendrive, mouse, or notebook, the lab assistant usually maintains a lost-and-found tray beside their desk.",
+    keywords: ["computer lab", "cad lab", "cad cam", "programming lab", "it lab"],
+    response: "Items forgotten in computer or CAD labs (pendrives, mice, notebooks) are collected at the end of practical batches. Check with the lab attendants or visit the main security desk.",
   },
   {
     category: "Campus Locations",
@@ -363,7 +494,7 @@ export const CAMPUS_INTENTS: FAQIntent[] = [
   },
   {
     category: "Account & Security",
-    keywords: ["tech stack", "who made this", "developer", "architecture", "open source"],
+    keywords: ["tech stack", "technologies used", "frameworks", "source code", "open source stack"],
     response: "CampusFind was designed and engineered by Ken Coelho for St. Francis Institute of Technology. Built using React 18, TypeScript, Tailwind CSS, Vite, and PostgreSQL / Supabase with strict Row-Level Security.",
   },
   {
@@ -413,8 +544,13 @@ export function getSimulatedAIResponse(query: string): string {
   for (const troll of TROLL_INTENTS) {
     for (const phrase of troll.keywords) {
       const normalizedPhrase = normalizeQuery(phrase);
-      // Exact match or contains whole phrase
-      if (clean === normalizedPhrase || clean.includes(normalizedPhrase)) {
+      // For short phrases/acronyms (e.g. "bc", "mc"), match whole token to avoid false positives on words like "subcompact"
+      if (normalizedPhrase.length <= 3) {
+        const words = clean.split(" ");
+        if (words.includes(normalizedPhrase)) {
+          return resolveResponse(troll.response);
+        }
+      } else if (clean === normalizedPhrase || clean.includes(normalizedPhrase)) {
         return resolveResponse(troll.response);
       }
     }
@@ -457,5 +593,5 @@ export function getSimulatedAIResponse(query: string): string {
   }
 
   // Tier 4: Helpful Contextual Fallback
-  return "That's a specific question! If it's about a lost item, try searching the keyword on the Browse board. If it's an urgent or high-value belonging (wallet, phone, hall ticket), please check with the Main Security Cabin on the ground floor or the CCF lab assistant.";
+  return "That's a specific question! If it's about a lost item, try searching the keyword on the Browse board. If it's an urgent or high-value belonging (wallet, phone, hall ticket), please check with the Main Security Cabin on the ground floor or the main administrative office.";
 }
