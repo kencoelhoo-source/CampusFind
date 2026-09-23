@@ -25,6 +25,7 @@ import {
   MapPin,
   EyeOff,
   Plus,
+  Search,
 } from "lucide-react";
 import heroCampus from "@/assets/hero-campus.jpg";
 import heroMobile from "@/assets/hero-mobile.jpg";
@@ -54,7 +55,7 @@ const categoryDetails: Record<string, { desc: string; color: string }> = {
   clothing: { desc: "Jackets, hoodies, caps", color: "text-amber-500 dark:text-amber-400" },
   documents: { desc: "IDs, cards, licenses", color: "text-emerald-500 dark:text-emerald-400" },
   keys: { desc: "Room keys, bike keys", color: "text-violet-500 dark:text-violet-400" },
-  wallet: { desc: "Wallets, purses, pouches", color: "text-rose-500 dark:text-rose-400" },
+  wallet: { desc: "Wallets, pouches, cards", color: "text-rose-500 dark:text-rose-400" },
   jewelry: { desc: "Watches, rings, chains", color: "text-pink-500 dark:text-pink-400" },
   books: { desc: "Textbooks, notes, binders", color: "text-indigo-500 dark:text-indigo-400" },
   other: { desc: "Bottles, umbrellas, miscellaneous", color: "text-teal-500 dark:text-teal-400" },
@@ -107,6 +108,7 @@ export default function Index() {
   const { user } = useAuth();
   const { openAuthPrompt } = useAuthPrompt();
   const [mobileAction, setMobileAction] = useState<"lost" | "found">("lost");
+  const [desktopSearch, setDesktopSearch] = useState("");
 
   const handleMobileActionClick = (type: "lost" | "found") => {
     setMobileAction(type);
@@ -115,6 +117,13 @@ export default function Index() {
     } else {
       openAuthPrompt({ actionType: type, redirectUrl: `/post?type=${type}` });
     }
+  };
+
+  const handleDesktopSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = desktopSearch.trim();
+    if (!trimmed) return;
+    navigate(`/items?q=${encodeURIComponent(trimmed)}`);
   };
 
   const { data, isLoading } = useQuery({
@@ -132,6 +141,7 @@ export default function Index() {
     <div>
       {/* ─── Hero ─── */}
       <section className="relative min-h-[100svh] overflow-hidden">
+        {/* Background Photograph — Preserved EXACTLY */}
         <div className="absolute inset-0">
           <picture>
             <source media="(max-width: 767px)" srcSet={heroMobile} />
@@ -141,26 +151,31 @@ export default function Index() {
               className="h-full w-full object-cover object-center md:object-[center_65%]"
             />
           </picture>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/35 to-black/25" />
+          {/* Mobile Overlay (Unchanged) */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/35 to-black/25 md:hidden" />
+          {/* Desktop Directional Cinematic Overlay: Darker on left, lighter on right, natural center */}
+          <div className="hidden md:block absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-black/25 pointer-events-none" />
+          <div className="hidden md:block absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/45 pointer-events-none" />
         </div>
 
-        <div className="container relative z-10 flex min-h-[100svh] flex-col justify-end pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-20 md:pb-24 md:pt-28">
-          <p className="animate-fade-in text-[11px] font-medium uppercase tracking-[0.16em] text-white/70 sm:text-[13px] sm:tracking-[0.22em] md:text-[14px]">
+        {/* Mobile Hero (md:hidden) — Completely Preserved */}
+        <div className="container relative z-10 flex min-h-[100svh] flex-col justify-end pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-20 md:hidden">
+          <p className="animate-fade-in text-[11px] font-medium uppercase tracking-[0.16em] text-white/70 sm:text-[13px] sm:tracking-[0.22em]">
             SFIT Lost & Found
           </p>
-          <h1 className="mt-3 max-w-3xl animate-fade-in font-display text-[1.9rem] font-semibold leading-[1.08] tracking-tight text-white min-[380px]:text-[2.25rem] sm:mt-4 sm:text-[2.7rem] md:mt-5 md:text-[4.5rem]">
+          <h1 className="mt-3 max-w-3xl animate-fade-in font-display text-[1.9rem] font-semibold leading-[1.08] tracking-tight text-white min-[380px]:text-[2.25rem] sm:mt-4 sm:text-[2.7rem]">
             Left behind.
             <br />
             <span className="text-white/72">Brought back.</span>
           </h1>
           <p
-            className="mt-3 hidden max-w-lg animate-fade-in text-[16px] leading-relaxed text-white/75 min-[400px]:block sm:mt-4 md:mt-6 md:text-[19px]"
+            className="mt-3 hidden max-w-lg animate-fade-in text-[16px] leading-relaxed text-white/75 min-[400px]:block sm:mt-4"
             style={{ animationDelay: "0.08s" }}
           >
             The campus board for SFIT. Browse without an account. Sign in with college Google to post or claim.
           </p>
 
-          <div className="mt-6 animate-fade-in sm:mt-8 md:mt-10" style={{ animationDelay: "0.16s" }}>
+          <div className="mt-6 animate-fade-in sm:mt-8" style={{ animationDelay: "0.16s" }}>
             <GooeySearchBar
               onSearch={(q) => {
                 const trimmed = q.trim();
@@ -172,7 +187,7 @@ export default function Index() {
           </div>
 
           {/* Mobile CTA: Report an item */}
-          <div className="mt-8 flex w-full animate-fade-in justify-start sm:w-auto md:hidden" style={{ animationDelay: "0.24s" }}>
+          <div className="mt-8 flex w-full animate-fade-in justify-start sm:w-auto" style={{ animationDelay: "0.24s" }}>
             <GlowAction
               className="w-full sm:w-auto"
               onClick={() => {
@@ -184,25 +199,91 @@ export default function Index() {
               Report an item
             </GlowAction>
           </div>
+        </div>
 
-          {/* Desktop CTA: Lost/Found split */}
-          <div className="mt-6 hidden animate-fade-in gap-3 md:flex" style={{ animationDelay: "0.24s" }}>
-            <GlowAction
-              onClick={() => {
-                if (user) navigate("/post?type=lost");
-                else openAuthPrompt({ actionType: "lost", redirectUrl: "/post?type=lost" });
-              }}
-            >
-              I lost something
-            </GlowAction>
-            <GlowAction
-              onClick={() => {
-                if (user) navigate("/post?type=found");
-                else openAuthPrompt({ actionType: "found", redirectUrl: "/post?type=found" });
-              }}
-            >
-              I found something
-            </GlowAction>
+        {/* Desktop Editorial Hero (hidden md:flex) */}
+        <div className="container relative z-10 hidden min-h-[100svh] items-center pt-24 pb-16 md:flex">
+          <div className="grid w-full grid-cols-12 items-center gap-8 lg:gap-12">
+            {/* Left Zone: Editorial Messaging */}
+            <div className="col-span-7 flex flex-col justify-center">
+              <p className="animate-fade-in text-[11.5px] font-semibold uppercase tracking-[0.22em] text-[#F5F2EA]/75">
+                SFIT &nbsp;/&nbsp; LOST &amp; FOUND
+              </p>
+              <h1 className="mt-5 font-['Inter_Tight',sans-serif] text-[72px] font-semibold leading-[0.95] tracking-[-0.035em] text-[#F5F2EA] lg:text-[76px] xl:text-[80px]">
+                Left behind.
+                <br />
+                Brought <span className="text-[#C4B282]">back.</span>
+              </h1>
+              <p
+                className="mt-6 max-w-[420px] text-[17.5px] font-normal leading-[1.68] text-[#F5F2EA]/75"
+                style={{ animationDelay: "0.08s" }}
+              >
+                The campus board for SFIT.
+                <br />
+                Browse without an account. Sign in with college Google to post or claim.
+              </p>
+            </div>
+
+            {/* Right Zone: Interaction / Search & Actions */}
+            <div className="col-span-5 flex flex-col items-end justify-center">
+              <div className="w-full max-w-[460px]">
+                {/* Search Surface */}
+                <form
+                  onSubmit={handleDesktopSearch}
+                  className="relative flex h-[58px] w-full items-center rounded-[20px] bg-[#F7F6F2] px-[18px] shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
+                >
+                  <Search className="ml-1 h-[18px] w-[18px] shrink-0 text-[#171717]/60 pointer-events-none select-none" />
+                  <input
+                    type="text"
+                    value={desktopSearch}
+                    onChange={(e) => setDesktopSearch(e.target.value)}
+                    placeholder="Search lost & found"
+                    className="h-full w-full bg-transparent pl-3 pr-2 text-[15px] font-normal text-[#171717] placeholder-[#171717]/55 outline-none border-0 ring-0 focus:outline-none focus:ring-0"
+                  />
+                  <button
+                    type="submit"
+                    aria-label="Search items"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#171717]/70 transition-colors duration-150 hover:text-[#171717]"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </form>
+
+                {/* Editorial Action List */}
+                <div className="mt-5 flex flex-col">
+                  {/* I lost something */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (user) navigate("/post?type=lost");
+                      else openAuthPrompt({ actionType: "lost", redirectUrl: "/post?type=lost" });
+                    }}
+                    className="group flex h-[52px] w-full items-center justify-between border-b border-white/20 text-[14.5px] font-medium text-[#F5F2EA]/90 transition-all duration-200 hover:text-[#F5F2EA]"
+                  >
+                    <span>I lost something</span>
+                    <ArrowRight className="h-4 w-4 text-[#F5F2EA]/75 transition-all duration-200 group-hover:translate-x-1 group-hover:text-[#F5F2EA]" />
+                  </button>
+
+                  {/* I found something */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (user) navigate("/post?type=found");
+                      else openAuthPrompt({ actionType: "found", redirectUrl: "/post?type=found" });
+                    }}
+                    className="group flex h-[52px] w-full items-center justify-between border-b border-white/20 text-[14.5px] font-medium text-[#F5F2EA]/90 transition-all duration-200 hover:text-[#F5F2EA]"
+                  >
+                    <span>I found something</span>
+                    <ArrowRight className="h-4 w-4 text-[#F5F2EA]/75 transition-all duration-200 group-hover:translate-x-1 group-hover:text-[#F5F2EA]" />
+                  </button>
+                </div>
+
+                {/* Subtle Microcopy */}
+                <p className="mt-5 text-[11px] font-medium uppercase tracking-[0.18em] text-[#F5F2EA]/60">
+                  Browse anonymously · Sign in only to post or claim
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
