@@ -665,4 +665,41 @@ When modifying or extending CampusFind:
     - Strict SFIT nomenclature enforced throughout; zero references to "Mumbai University" or "autonomous".
   - Validated by unit test suite in `src/test/ai-responses.test.ts` ensuring legitimate questions never trigger troll responses by accident, and all meme triggers return sharp existential comebacks.
 
+### 10.11 Critical Bug Fixes: Soft-Delete RLS, Image Visibility, Toast UX (September 2026)
+- **Soft-Delete RLS Fix (`20260923020000_fix_soft_delete_and_storage_read.sql`)**:
+  - Root cause: PostgreSQL evaluates SELECT policies during UPDATE operations. The existing SELECT policy `USING (deleted_at IS NULL)` made the post-update row invisible after setting `deleted_at`, causing the soft-delete UPDATE to fail with "new row violates row-level security".
+  - Fix: Added an owner-scoped SELECT policy `"Owners can see own items including deleted"` that lets authenticated users always see their own items regardless of `deleted_at`. Does not expose soft-deleted items to other users.
+- **Storage Read Policy Restoration**:
+  - Root cause: Migration `20260916160000_linter_useful_fixes.sql` dropped the `"Public can view item images"` SELECT policy on `storage.objects` without recreating it, breaking image access through certain Supabase client paths.
+  - Fix: Restored the SELECT policy for `bucket_id = 'item-images'` in the same migration.
+- **Dashboard Delete Error Message**:
+  - Replaced raw Postgres error dump (`error.message`) in the delete handler with a user-friendly message ("Couldn't delete this listing. Please try again.").
+- **Toast Width**:
+  - Increased toast `max-width` from `26rem` to `30rem` in `sonner.tsx` to prevent visual truncation of longer messages.
+- **Image Upload Root Cause & Direct Storage Upload Architecture**:
+  - Root cause: `PostItem.tsx` was relying on `supabase.functions.invoke("upload-authorize")` to get signed upload URLs. Because this Supabase Edge Function was never deployed to the remote Supabase project, calls to it failed preflight with a CORS error (`Response to preflight request doesn't pass access control check: It does not have HTTP ok status`). The previous handler caught this, but skipped uploading any files to storage or inserting rows into `public.item_images`, leaving items without images.
+  - Fix: Removed the dead `upload-authorize` invocation and implemented direct authenticated upload via `supabase.storage.from("item-images").upload(...)`. Storage RLS policy `Users upload item images to own folder` secures uploads directly at the database level by matching `auth.uid()` to the first folder in the path (`${user.id}/${item.id}/${uuid}.${ext}`). The public URL is retrieved and recorded into `public.item_images`, completing the end-to-end image pipeline.
+
+### 10.12 Post Success UI & Detail Page Enhancements (September 2026)
+- **Toast Queue Resolution in `PostItem.tsx`**:
+  - Root cause: Sonner toast was configured with `visibleToasts={1}` and a shared ID override (`withSharedId`) to maintain Apple-style single toast hygiene. When photo compression finished immediately before the user submitted the form, the "Photo(s) optimized & ready" toast remained active. The subsequent "Item posted successfully!" toast was queued and visually suppressed during the instant route navigation.
+  - Fix: Implemented `toast.dismiss()` directly before rendering the success toast to explicitly clear the queue, ensuring instant visibility.
+- **Lost Item Terminology Fix in `ItemDetail.tsx`**:
+  - Root cause: For "lost" items, the owner view fallback text previously read "You posted this. Claims arrive in Dashboard → Inbox." This is conceptually incorrect, as nobody "claims" a lost item—they report finding it.
+  - Fix: Replaced with accurate, reassuring copy specifically for lost items: "You reported this lost. Anyone who spots or finds it can contact you."
+- **In-Page Success Banner (`ItemDetail.tsx`)**:
+  - Implemented `routeState.justPosted` parameter bridging between the post form and the detail page.
+  - Injected an elegant, dismissible, Apple-inspired success banner directly into the top of the detail page if the user just created the listing ("Lost item reported successfully. Your listing is now live on the campus board."). This eliminates navigation ambiguity and provides a hard confirmation even if the toast fades.
+
+### 10.13 Apple & Linear Grade Toast Notification Architecture (September 2026)
+- **Elimination of Hardcoded CSS Ellipsis Truncation**:
+  - Root cause: `src/index.css` contained a rigid rule `[data-sonner-toast] [data-title] { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }`. This forcefully overrode any component-level classes and truncated messages with an ellipsis (`...`) onto a single line.
+  - Fix: Overhauled `[data-sonner-toast] [data-title]` and `[data-sonner-toast] [data-description]` in `src/index.css` with `white-space: normal !important`, `word-break: break-word !important`, `overflow-wrap: break-word !important`, and `overflow: visible !important`, allowing natural fluid wrapping without truncation.
+- **Top-Tier Fluid Responsive Geometry & Sizing**:
+  - Configured `[data-sonner-toast]` with `min-width: min(280px, calc(100vw - 2rem))` and `max-width: min(30rem, calc(100vw - 2rem))` (`480px` on desktop). Short alerts remain sleek, compact capsules, while longer notifications expand naturally.
+- **Micro-Optical Alignment & Capsule Symmetry**:
+  - Preserved `items-center` flex alignment so minimalist vector icons (borderless, background-free) remain centered alongside both single-line and multi-line content, honoring Apple Dynamic Island capsule symmetry.
+  - Increased notification duration from 3200ms to 4000ms conforming to WCAG reading pace guidelines for multi-line alerts.
+- **Hierarchical Title + Description Pattern**:
+  - Refactored `Dashboard.tsx` sign-in lock toast to leverage the structured `{ description: "..." }` pattern (`"Sign-in locked to SFIT emails"` + `"Non-SFIT sessions will be signed out."`), establishing clear visual hierarchy.
 

@@ -102,17 +102,17 @@ export function ClaimModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">
-            {isLostItem ? "I found this item" : "This is mine"}
+            {isLostItem ? "I found or spotted it" : "This is mine"}
           </DialogTitle>
           <DialogDescription>
             {isLostItem
-              ? "Let the owner know where you found it and arrange a safe handover on campus."
+              ? "Did you pick it up or just see it somewhere? Send a message to the owner to help them recover it."
               : "Describe it in your own words — color, marks, what’s inside. The finder will accept or decline. Hand it over in a public campus place if it matches."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <Label htmlFor="proof">
-            {isLostItem ? "Message for the owner" : "How you know it’s yours"}
+            {isLostItem ? "Where did you see or leave it?" : "How you know it’s yours"}
           </Label>
           <Textarea
             id="proof"

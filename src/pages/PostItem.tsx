@@ -255,36 +255,34 @@ export default function PostItem() {
       const failedUploads: string[] = [];
 
       if (images.length > 0) {
-        const { data: authData, error: authError } = await supabase.functions.invoke("upload-authorize", {
-          body: {
-            itemId: item.id,
-            files: images.map(f => ({ name: f.name, type: f.type, size: f.size }))
-          }
-        });
+        for (let i = 0; i < images.length; i++) {
+          const file = images[i];
+          const ext = file.name.split(".").pop()?.toLowerCase() || (file.type === "image/webp" ? "webp" : "jpg");
+          const targetPath = `${user.id}/${item.id}/${crypto.randomUUID()}.${ext}`;
 
-        if (authError || !authData?.urls) {
-          toast.error("Failed to authorize image uploads");
-        } else {
-          const urls = authData.urls;
-          for (let i = 0; i < images.length; i++) {
-            const file = images[i];
-            const { path, token } = urls[i];
-            
-            const { error: uploadError } = await supabase.storage
-              .from("item-images")
-              .uploadToSignedUrl(path, token, file);
-              
-            if (uploadError) {
-              failedUploads.push(file.name);
-              continue;
-            }
-
-            const { data: urlData } = supabase.storage.from("item-images").getPublicUrl(path);
-            await supabase.from("item_images").insert({
-              item_id: item.id,
-              storage_path: path,
-              url: urlData.publicUrl,
+          const { error: uploadError } = await supabase.storage
+            .from("item-images")
+            .upload(targetPath, file, {
+              contentType: file.type || "image/webp",
+              upsert: false,
             });
+
+          if (uploadError) {
+            console.error("Storage upload failed for", file.name, uploadError.message);
+            failedUploads.push(file.name);
+            continue;
+          }
+
+          const { data: urlData } = supabase.storage.from("item-images").getPublicUrl(targetPath);
+          const { error: imgDbError } = await supabase.from("item_images").insert({
+            item_id: item.id,
+            storage_path: targetPath,
+            url: urlData.publicUrl,
+          });
+
+          if (imgDbError) {
+            console.error("item_images insert failed:", imgDbError.message);
+            failedUploads.push(file.name);
           }
         }
       }
@@ -302,10 +300,14 @@ export default function PostItem() {
       void notifyEmail({ kind: "possible_match", itemId: item.id });
 
       clearPostDraft(user.id);
-      toast.success("Item posted successfully!");
-      navigate(`/items/${item.id}`);
+      toast.dismiss(); // dismiss image optimization toasts so success shows immediately on the next page
+      
+      navigate(`/items/${item.id}`, { state: { justPosted: true, postType: validData.itemType } });
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to post item");
+      const msg = err instanceof Error
+        ? err.message
+        : (err as { message?: string })?.message || "Failed to post item";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

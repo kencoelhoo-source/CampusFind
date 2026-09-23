@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,8 @@ export default function ItemDetail() {
     itemStatus?: string;
     itemCategory?: string;
     itemLocation?: string;
+    justPosted?: boolean;
+    postType?: "lost" | "found";
   };
 
   const { data, isLoading } = useQuery({
@@ -95,6 +98,14 @@ export default function ItemDetail() {
     setActiveImage(0);
     setCopied(false);
   }, [id, data?.images?.length]);
+
+  useEffect(() => {
+    if (routeState.justPosted) {
+      const isLost = routeState.postType === "lost";
+      toast.success(isLost ? "Lost item reported successfully!" : "Found item reported successfully!");
+      window.history.replaceState({}, document.title);
+    }
+  }, [routeState.justPosted, routeState.postType]);
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -177,7 +188,7 @@ export default function ItemDetail() {
   const atDesk = item.status === "found" && item.held_where === "at_desk";
   const canClaim = (item.status === "lost" || item.status === "found") && !atDesk;
   const hero = images[activeImage];
-  const actionLabel = item.status === "found" ? "This is mine" : "I found this";
+  const actionLabel = item.status === "found" ? "This is mine" : "I found or spotted this";
 
   const specs = [
     item.location ? { label: locationLabel, value: item.location } : null,
@@ -323,9 +334,11 @@ export default function ItemDetail() {
                     ? (isOriginallyFound ? "You marked this item as returned." : "You marked this listing as resolved.")
                     : item.status === "claimed"
                       ? "You accepted a claim for this item. Coordinate handover in Dashboard → Incoming."
-                      : atDesk
-                        ? `You posted this. People collect it from the ${item.held_at || "campus"} desk — no claims. Mark it returned in Dashboard when it’s gone.`
-                        : "You posted this. Claims arrive in Dashboard → Inbox."}
+                      : item.status === "lost"
+                        ? "You reported this lost. Anyone who spots or finds it can contact you."
+                        : atDesk
+                          ? `You posted this. People collect it from the ${item.held_at || "campus"} desk — no claims. Mark it returned in Dashboard when it’s gone.`
+                          : "You posted this. Claims arrive in Dashboard → Inbox."}
                 </p>
               )}
               {!isOwner && !myClaim && (item.status === "claimed" || item.status === "returned") && (
@@ -383,26 +396,29 @@ export default function ItemDetail() {
         </section>
       )}
 
-      {lightboxOpen && hero && (
+      {lightboxOpen && hero && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/92 p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 animate-in fade-in duration-200"
           onClick={() => setLightboxOpen(false)}
         >
-          <button
-            type="button"
-            onClick={() => setLightboxOpen(false)}
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-          <img
-            src={hero}
-            alt={item.title}
-            className="max-h-[92vh] max-w-[92vw] object-contain animate-scale-in"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+          <div className="relative inline-block animate-scale-in">
+            <img
+              src={hero}
+              alt={item.title}
+              className="block max-h-[90vh] max-w-[90vw] object-contain shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(false)}
+              className="absolute -right-3 -top-3 z-50 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white/90 backdrop-blur-md transition-colors hover:bg-black/80 ring-1 ring-white/10 shadow-xl"
+              aria-label="Close"
+            >
+              Close
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
 
       <ClaimModal

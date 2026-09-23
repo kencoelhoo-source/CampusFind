@@ -31,6 +31,10 @@ export const toast = Object.assign(
   },
 );
 
+if (typeof window !== "undefined") {
+  (window as any).toast = toast;
+}
+
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 const Toaster = ({ ...props }: ToasterProps) => {
@@ -42,30 +46,31 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       position="top-center"
       offset={16}
-      duration={3200}
+      duration={4000}
       visibleToasts={1}
       expand={false}
       gap={12}
       closeButton={false}
       icons={{
         error: (
-          <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#FF453A] text-white shadow-[0_1px_4px_rgba(255,69,58,0.45)]">
+          <div className="flex h-[20px] w-[20px] shrink-0 items-center justify-center text-rose-500">
             <svg
-              className="h-3.5 w-3.5 stroke-white stroke-[3.2]"
+              className="h-5 w-5 stroke-current stroke-[2.5]"
               viewBox="0 0 24 24"
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <line x1="12" y1="5.5" x2="12" y2="13.5" />
-              <circle cx="12" cy="18.5" r="1.1" fill="white" stroke="none" />
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+              <line x1="9" y1="9" x2="15" y2="15" />
             </svg>
           </div>
         ),
         success: (
-          <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#30D158] text-white shadow-[0_1px_4px_rgba(48,209,88,0.45)]">
+          <div className="flex h-[20px] w-[20px] shrink-0 items-center justify-center text-emerald-400">
             <svg
-              className="h-3.5 w-3.5 stroke-white stroke-[3.2]"
+              className="h-5 w-5 stroke-current stroke-[2.75]"
               viewBox="0 0 24 24"
               fill="none"
               strokeLinecap="round"
@@ -76,35 +81,37 @@ const Toaster = ({ ...props }: ToasterProps) => {
           </div>
         ),
         warning: (
-          <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#FF9F0A] text-white shadow-[0_1px_4px_rgba(255,159,10,0.45)]">
+          <div className="flex h-[20px] w-[20px] shrink-0 items-center justify-center text-amber-500">
             <svg
-              className="h-3.5 w-3.5 stroke-white stroke-[3.2]"
+              className="h-5 w-5 stroke-current stroke-[2.5]"
               viewBox="0 0 24 24"
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <line x1="12" y1="5.5" x2="12" y2="13.5" />
-              <circle cx="12" cy="18.5" r="1.1" fill="white" stroke="none" />
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
         ),
         info: (
-          <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#0A84FF] text-white shadow-[0_1px_4px_rgba(10,132,255,0.45)]">
+          <div className="flex h-[20px] w-[20px] shrink-0 items-center justify-center text-sky-500">
             <svg
-              className="h-3.5 w-3.5 stroke-white stroke-[3]"
+              className="h-5 w-5 stroke-current stroke-[2.5]"
               viewBox="0 0 24 24"
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <circle cx="12" cy="6" r="1.1" fill="white" stroke="none" />
-              <line x1="12" y1="10" x2="12" y2="18" />
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
             </svg>
           </div>
         ),
         loading: (
-          <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center">
+          <div className="flex h-[20px] w-[20px] shrink-0 items-center justify-center">
             <svg
               className="h-4 w-4 animate-spin text-neutral-300"
               viewBox="0 0 24 24"
@@ -120,22 +127,21 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       toastOptions={{
         unstyled: true,
-        style: { width: "fit-content" },
         classNames: {
           toast:
-            "group toast flex !w-fit max-w-[min(26rem,calc(100vw-2rem))] items-start gap-3 rounded-2xl border border-white/[0.14] bg-neutral-950 p-4 pl-3.5 text-[13.5px] font-medium leading-snug text-neutral-100 shadow-[0_12px_40px_rgba(0,0,0,0.4),0_1px_1px_rgba(255,255,255,0.12)_inset]",
-          title: "text-[14px] font-medium tracking-tight text-neutral-100",
-          description: "text-[13px] font-normal text-neutral-400 leading-relaxed mt-0.5",
-          icon: "flex items-center justify-center shrink-0 mt-0.5",
-          content: "flex min-w-0 flex-col justify-center",
+            "group toast flex w-full sm:w-auto max-w-[480px] items-center gap-3.5 rounded-[1.35rem] border border-white/10 bg-[#111111]/90 backdrop-blur-2xl px-4 py-3.5 shadow-[0_12px_36px_rgba(0,0,0,0.5),0_1px_1px_rgba(255,255,255,0.08)_inset]",
+          title: "text-[13.5px] sm:text-[14px] font-semibold tracking-tight text-white/95 whitespace-normal break-words leading-snug",
+          description: "text-[12.5px] sm:text-[13px] font-normal text-white/65 leading-relaxed whitespace-normal break-words mt-0.5",
+          icon: "flex items-center justify-center shrink-0 self-center",
+          content: "flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left",
           actionButton:
-            "rounded-full bg-white/12 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 transition-colors",
+            "rounded-full bg-white/10 px-3.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-white/20",
           cancelButton:
-            "rounded-full bg-transparent px-2.5 py-1 text-xs font-normal text-neutral-400 hover:text-white transition-colors",
-          success: "border-emerald-500/25",
-          error: "border-rose-500/25",
-          warning: "border-amber-500/25",
-          info: "border-sky-500/25",
+            "rounded-full bg-transparent px-3 py-1.5 text-[12px] font-medium text-white/50 transition-colors hover:text-white",
+          success: "border-emerald-500/20",
+          error: "border-rose-500/20",
+          warning: "border-amber-500/20",
+          info: "border-sky-500/20",
         },
       }}
       {...props}

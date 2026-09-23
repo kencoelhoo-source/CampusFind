@@ -370,7 +370,7 @@ export default function Dashboard() {
       .eq("id", id);
     setDeleting(false);
     if (error) {
-      toast.error(`Failed to delete item: ${error.message}`);
+      toast.error("Couldn't delete this listing. Please try again.");
       return;
     }
 
@@ -1152,7 +1152,9 @@ export default function Dashboard() {
                 try {
                   await setSfitLock(true);
                   setPendingSfitLock(false);
-                  toast.success("Sign-in locked to SFIT emails. Non-SFIT sessions will be signed out.");
+                  toast.success("Sign-in locked to SFIT emails", {
+                    description: "Non-SFIT sessions will be signed out.",
+                  });
                 } catch (err) {
                   toast.error(err instanceof Error ? err.message : "Could not update sign-in lock.");
                 }
