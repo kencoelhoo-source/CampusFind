@@ -25,30 +25,39 @@ CREATE INDEX IF NOT EXISTS notifications_sender_created_idx
 -- Never expose or store listing emails
 -- ---------------------------------------------------------------------------
 
-UPDATE public.items SET contact_email = NULL WHERE contact_email IS NOT NULL;
-
-REVOKE SELECT (contact_email) ON TABLE public.items FROM PUBLIC, anon, authenticated;
-REVOKE INSERT (contact_email) ON TABLE public.items FROM PUBLIC, anon, authenticated;
-REVOKE UPDATE (contact_email) ON TABLE public.items FROM PUBLIC, anon, authenticated;
-
-CREATE OR REPLACE FUNCTION public.strip_item_contact_email()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+DO $$
 BEGIN
-  NEW.contact_email = NULL;
-  RETURN NEW;
-END;
-$$;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'items' 
+      AND column_name = 'contact_email'
+  ) THEN
+    UPDATE public.items SET contact_email = NULL WHERE contact_email IS NOT NULL;
+    REVOKE SELECT (contact_email) ON TABLE public.items FROM PUBLIC, anon, authenticated;
+    REVOKE INSERT (contact_email) ON TABLE public.items FROM PUBLIC, anon, authenticated;
+    REVOKE UPDATE (contact_email) ON TABLE public.items FROM PUBLIC, anon, authenticated;
 
-DROP TRIGGER IF EXISTS items_strip_contact_email ON public.items;
-CREATE TRIGGER items_strip_contact_email
-  BEFORE INSERT OR UPDATE ON public.items
-  FOR EACH ROW EXECUTE FUNCTION public.strip_item_contact_email();
+    CREATE OR REPLACE FUNCTION public.strip_item_contact_email()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $func$
+    BEGIN
+      NEW.contact_email = NULL;
+      RETURN NEW;
+    END;
+    $func$;
 
-REVOKE EXECUTE ON FUNCTION public.strip_item_contact_email() FROM PUBLIC;
+    DROP TRIGGER IF EXISTS items_strip_contact_email ON public.items;
+    CREATE TRIGGER items_strip_contact_email
+      BEFORE INSERT OR UPDATE ON public.items
+      FOR EACH ROW EXECUTE FUNCTION public.strip_item_contact_email();
+
+    REVOKE EXECUTE ON FUNCTION public.strip_item_contact_email() FROM PUBLIC;
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- Exact SFIT email domains (no LIKE, no NULL)
