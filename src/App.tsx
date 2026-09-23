@@ -25,6 +25,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const FAQ = lazy(() => import("./pages/FAQ"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
+const About = lazy(() => import("./pages/About"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -92,11 +93,16 @@ function AppShell() {
                 <Route path="/faq" element={<FAQ />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
+                <Route path="/about" element={<About />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </PageTransition>
           </Suspense>
-          {pathname !== "/auth" && pathname !== "/" && <Footer />}
+          {!pathname.startsWith("/items") &&
+            !pathname.startsWith("/dashboard") &&
+            pathname !== "/post" &&
+            pathname !== "/auth" &&
+            pathname !== "/" && <Footer />}
         </main>
       </div>
     </>

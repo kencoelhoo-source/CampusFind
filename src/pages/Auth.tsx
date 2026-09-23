@@ -253,7 +253,7 @@ export default function Auth() {
           {/* Transparent interactive hotspot for 'Terms' link */}
           <Link
             to="/terms"
-            aria-label="Terms of Service"
+            aria-label="Terms of Use"
             className="absolute rounded transition-colors hover:bg-black/[0.06] active:bg-black/[0.1] before:absolute before:-inset-2 before:content-['']"
             style={{
               top: "66.0%",

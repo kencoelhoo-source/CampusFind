@@ -772,6 +772,82 @@ When modifying or extending CampusFind:
   - **Inactive States (`Browse`, `Report`, `You`)**: `rgba(17, 17, 19, 0.52)` slate in light mode (> 6.5:1 contrast on porcelain glass, exceeding WCAG AA); `rgba(255, 255, 255, 0.55)` luminous white in dark mode.
   - Added tactile press depression (`:active { transform: scale(0.96); }`) and micro-lift on active icons (`transform: scale(1.04) translateY(-0.5px)`).
 
+### 10.18 Homepage CTA Secondary Button Polish (September 2026)
+- **Eliminated Borderline from "Browse listings" Pill Button**:
+  - In `src/pages/Index.tsx`, transitioned the secondary action button from `variant="outline"` to `variant="ghost"`.
+  - Removed all hairline border tokens (`border-foreground/20`, `dark:border-white/20`, and `dark:hover:border-white/30`).
+  - Added explicit zero-border overrides (`border-0 border-none`) while preserving the frosted glass backdrop (`backdrop-blur-md bg-foreground/5 dark:bg-white/10`) and hover states, producing a completely borderless pill aesthetic flush with the CTA canvas.
+
+### 10.19 Reference 4-Column Footer Architecture (September 2026)
+- **Faithful Implementation of 4-Column Reference Design (`src/components/layout/Footer.tsx`)**:
+  - Structured across 4 evenly proportioned columns (`md:grid-cols-12`):
+    - **Column 1 (`CampusFind`, 4 cols)**: Brand title, author attribution (`Built by Ken Coelho`), and two-line mission statement.
+    - **Column 2 (`Quick Links`, 3 cols)**: Vertical navigation stack with compact line spacing (`Home`, `Browse`, `FAQ`, `Report`).
+    - **Column 3 (`Resources`, 3 cols)**: Dedicated resources column housing `About`, `Privacy`, and `Terms`.
+    - **Column 4 (`Stay Connected`, 2 cols)**: Centered glassmorphic squircle button dedicated strictly to GitHub (`https://github.com/kencoelhoo-source`).
+  - **Synchronized Header Height & Baseline**:
+    - Wrapped all four column titles (`CampusFind`, `Quick Links`, `Resources`, `Stay Connected`) in uniform `h-7 items-center` containers, ensuring exact pixel-level horizontal baseline alignment across desktop viewports.
+  - **Snug Vertical Metrics**:
+    - List items spaced tightly with `space-y-1.5 sm:space-y-2` under an identical `mt-2.5` offset, preventing tall voids.
+    - Hairline divider set with `my-5 sm:my-6`, keeping the gap between content and rule line to an optical ~20px.
+  - **Balanced Sub-Bar**:
+    - Left side displays dynamic copyright notice (`© {year} CampusFind. All rights reserved.`); right side houses direct `Privacy Policy` and `Terms of Service` links.
+
+
+### 10.20 Dedicated About Page Implementation (September 2026)
+- **Built `/about` Route (`src/pages/About.tsx`)**:
+  - Structured using the existing `LegalLayout` component to ensure 100% thematic and typographic consistency with `Privacy.tsx` and `Terms.tsx`.
+  - Documents the core SFIT mission, platform workflow (Open Browse, SFIT Perimeter Security, Claim Verification, Campus Handovers), Privacy by Default philosophy, and Ken Coelho's open-source attribution.
+
+### 10.21 Bottom CTA Vertical Centering & Landscape Calibration (September 2026)
+- **Calibrated CTA Landscape Alignment (`src/pages/Index.tsx`)**:
+  - Overcame flexbox `justify-center` vertical bias caused by the embedded bottom footer consuming ~180px of parent section height.
+  - Introduced responsive downward translation offsets (`translate-y-10 sm:translate-y-14 md:translate-y-24 lg:translate-y-28`) paired with balanced padding (`pt-24 sm:pt-28 md:pt-32 pb-4`).
+  - Precisely anchors the "Built only for SFIT." headline, descriptive copy, and authentication action buttons within the true visual and optical center of the scenic mountain background landscape across mobile, tablet, laptop, and desktop viewports.
+
+### 10.22 Social Links: LinkedIn Integration (`src/components/layout/Footer.tsx`) (September 2026)
+- **Integrated LinkedIn Alongside GitHub**:
+  - Added Ken Coelho's professional LinkedIn profile (`https://www.linkedin.com/in/ken-coelho/`) directly beside GitHub in the "Stay Connected" footer module.
+  - Maintained concentric squircle geometry (`rounded-xl sm:rounded-2xl`), matching glassmorphism (`backdrop-blur-md`), and theme-aware contrast tokens across both standard and embedded footer variations.
+  - Aligned both actions with a responsive flex gap (`gap-2.5 sm:justify-end`).
+
+### 10.23 Legal Terminology Harmonization: "Terms of Use" (`Footer.tsx`, `Auth.tsx`) (September 2026)
+- **Harmonized Legal Document Naming**:
+  - Standardized the footer link label from "Terms of Service" to **"Terms of Use"** (`src/components/layout/Footer.tsx`).
+  - Updated corresponding accessibility label in `src/pages/Auth.tsx` to `aria-label="Terms of Use"`.
+  - Guarantees 100% naming consistency across the UI, matching the destination page title (`Terms.tsx` → `<LegalLayout title="Terms of Use">`) and references in `About.tsx`.
+
+### 10.24 Contextual Footer Suppression on Core App Views (`src/App.tsx`) (September 2026)
+- **Suppressed Footer on Operational App Routes**:
+  - Gated `<Footer />` rendering in `src/App.tsx` to exclude core application and workflow views:
+    - **Browse (`/items`, `/items/:id`)**: Prevents layout collisions with infinite scroll feeds and continuous catalog navigation.
+    - **Dashboard (`/dashboard`)**: Maximizes viewport height for triage queues, claims review, and inbox management consoles.
+    - **Report / Post (`/post`)**: Keeps item creation and dropzone upload workflows streamlined without marketing clutter.
+  - Preserved footer visibility on content, legal, and public information pages (`/about`, `/faq`, `/privacy`, `/terms`, 404), with `/` retaining its integrated landscape footer (`<Footer embedded />`).
+
+### 10.25 Mobile Landscape Footer & CTA Action Icons (`Footer.tsx`, `Index.tsx`) (September 2026)
+- **Minimalist Mobile Landscape Footer (`Footer.tsx`)**:
+  - For embedded home landscape, hides upper brand and social columns on mobile viewports (`hidden sm:flex`) and suppresses the hairline divider (`hidden sm:block`).
+  - Renders a clean, centered two-line mobile legal lockup (`© {year} CampusFind. All rights reserved.` and `Privacy Policy | Terms of Use`), stripping dark gradient overlays so scenic mountain/grass photography remains visible.
+  - Retains full 2-column layout with GitHub and LinkedIn squircle links on tablet, laptop, and desktop.
+- **CTA Action Button Branding & Typography (`Index.tsx`)**:
+  - Integrated 4-color SVG Google "G" emblem (`#4285F4`, `#34A853`, `#FBBC05`, `#EA4335`) on primary authentication action.
+  - Integrated vector `Search` magnifying glass icon (`strokeWidth={2}`) on secondary browse action.
+  - Styled "SFIT." with an italic accent (`italic text-blue-700 dark:text-[#E8CC96]`).
+  - Calibrated laptop vertical offset slightly upwards (`md:translate-y-12 lg:translate-y-14`) from previous deeper offset to achieve optimal vertical equilibrium.
+
+### 10.26 Editorial Typography Pairing: High-Contrast Serif Italic Accent (`Index.tsx`, `tailwind.config.ts`, `index.html`) (September 2026)
+- **Editorial Typography Stack Integration**:
+  - Injected `Instrument Serif` (Italic) and `Playfair Display` (Italic) alongside Inter into `index.html` via Google Fonts.
+  - Defined custom `fontFamily.serif` stack in `tailwind.config.ts` prioritizing `'Instrument Serif'`, `'Playfair Display'`, and system serif fallbacks (`ui-serif, Georgia, Cambria, 'Times New Roman'`).
+- **Headline Wordmark Styling (`Index.tsx`)**:
+  - Transformed the wordmark in the primary CTA headline from standard oblique sans-serif to an editorial high-contrast serif italic (`font-serif italic font-normal tracking-normal`).
+  - Creates the contemporary sans-to-serif typographic tension (clean geometric grotesk "Built only for" paired with graceful calligraphic serif "SFIT.").
+  - Wrapped with `inline-block pr-1` buffer to prevent italic glyph clipping across Windows DirectWrite and WebKit text renderers.
+
+
+
+
 
 
 

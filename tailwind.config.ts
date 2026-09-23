@@ -17,6 +17,7 @@ export default {
       fontFamily: {
         display: ["-apple-system", "BlinkMacSystemFont", "'Segoe UI'", "system-ui", "sans-serif"],
         body: ["-apple-system", "BlinkMacSystemFont", "'Segoe UI'", "system-ui", "sans-serif"],
+        serif: ["'Instrument Serif'", "'Playfair Display'", "ui-serif", "Georgia", "Cambria", "'Times New Roman'", "Times", "serif"],
       },
       colors: {
         border: "hsl(var(--border))",
