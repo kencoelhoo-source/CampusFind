@@ -24,7 +24,6 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
       console.error("ErrorBoundary caught an unhandled exception:", error, errorInfo);
     }
   }

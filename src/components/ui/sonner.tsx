@@ -31,10 +31,6 @@ export const toast = Object.assign(
   },
 );
 
-if (typeof window !== "undefined") {
-  (window as any).toast = toast;
-}
-
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 const Toaster = ({ ...props }: ToasterProps) => {
