@@ -112,6 +112,7 @@ REVOKE EXECUTE ON FUNCTION public.soft_delete_item() FROM PUBLIC;
 
 -- Drop old select policy on items
 DROP POLICY IF EXISTS "Anyone can view items" ON public.items;
+DROP POLICY IF EXISTS "Anyone can view active items" ON public.items;
 
 -- Create new select policy on items to filter out soft-deleted records
 CREATE POLICY "Anyone can view active items" ON public.items
@@ -119,6 +120,7 @@ CREATE POLICY "Anyone can view active items" ON public.items
 
 -- Drop old select policy on item_images
 DROP POLICY IF EXISTS "Anyone can view item images" ON public.item_images;
+DROP POLICY IF EXISTS "Anyone can view active item images" ON public.item_images;
 
 -- Create new select policy on item_images to filter out images of soft-deleted items
 CREATE POLICY "Anyone can view active item images" ON public.item_images

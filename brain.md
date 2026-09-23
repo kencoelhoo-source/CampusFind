@@ -708,6 +708,7 @@ When modifying or extending CampusFind:
 - **Migration File Integrity Gate**: Populated `20260920120000_claims_claimant_delete_and_status_check.sql` with valid idempotent SQL to pass the non-empty verification check in `.github/workflows/db-migrations.yml`.
 - **Remote Migration History Reconciliation**: Cleaned phantom March 2026 prototype versions from `supabase_migrations.schema_migrations` to maintain 1:1 parity with git repository history for Supabase Preview.
 - **CI Test Environment Isolation**: Added fallback mock Supabase environment variables in `vitest.config.ts` and `src/test/setup.ts`, and mocked the Supabase client in `src/test/email.test.ts` to prevent missing local `.env` files from triggering initialization crashes in headless CI runners.
+- **Idempotent Migration Policies**: Added missing `DROP POLICY IF EXISTS` guards to `20260617000000_security_hardening_and_linter_fixes.sql` so that Supabase Preview can replay migration history cleanly without "policy already exists" (SQLSTATE 42710) collisions.
 
 
 
