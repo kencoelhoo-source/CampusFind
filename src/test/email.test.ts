@@ -1,4 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+      signOut: vi.fn().mockResolvedValue({ error: null }),
+    },
+  },
+}));
+
 import { canManageSfitEmailLock, getEmailLockCache, isAllowedSfitEmail, isSfitEmailDomain, setEmailLockCache } from "@/lib/email";
 import { rejectNonSfitSession } from "@/contexts/AuthContext";
 import type { Session } from "@supabase/supabase-js";
