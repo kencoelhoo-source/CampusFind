@@ -710,5 +710,78 @@ When modifying or extending CampusFind:
 - **CI Test Environment Isolation**: Added fallback mock Supabase environment variables in `vitest.config.ts` and `src/test/setup.ts`, and mocked the Supabase client in `src/test/email.test.ts` to prevent missing local `.env` files from triggering initialization crashes in headless CI runners.
 - **Idempotent Migration Policies**: Added missing `DROP POLICY IF EXISTS` guards to `20260617000000_security_hardening_and_linter_fixes.sql` so that Supabase Preview can replay migration history cleanly without "policy already exists" (SQLSTATE 42710) collisions.
 
+### 10.15 Editorial Swiss Desktop Hero Redesign (September 2026)
+- **Target Scope & Strict Guardrails**:
+  - Desktop / Laptop viewports (`md:` breakpoint and above) redesigned to match a Swiss International / editorial lost-and-found aesthetic.
+  - Mobile experience (`< 768px`) completely preserved under `md:hidden` with zero regression or unintended layout changes.
+  - Background photograph (`src/assets/hero-campus.jpg`) preserved exactly untouched (composition, backpack, bench, keys, trees, perspective).
+- **Asymmetric Editorial Composition**:
+  - Replaced left-stacked column with an asymmetric 12-column Swiss editorial grid:
+    - **Left Zone (Messaging)**:
+      - Editorial Eyebrow: `SFIT / LOST & FOUND` (`text-[11.5px] font-semibold uppercase tracking-[0.22em] text-[#F5F2EA]/75`).
+      - Headline: `Left behind. Brought back.` (`Inter Tight` neo-grotesk font, `72–80px`, line height `0.95`, negative tracking `-0.035em`, warm white `#F5F2EA` with soft olive/gold accent on `back.`).
+      - Narrow description paragraph (`text-[17.5px]`, line height `1.68`, `max-w-[420px]`, warm white `75%` opacity).
+    - **Right Zone (Interaction)**:
+      - Command search surface (`max-w-[460px]`, `h-[58px]`, `rounded-[20px]`, `#F7F6F2` off-white surface, `#171717` dark text, 18px magnifying glass, submit arrow).
+      - Editorial Action List: `I lost something →` and `I found something →` in clean horizontal rows with 1px border dividers (`border-white/20`) and 4px arrow shift micro-interactions on hover.
+      - Microcopy: `BROWSE ANONYMOUSLY · SIGN IN ONLY TO POST OR CLAIM` (`11px`, tracked out `0.18em`, muted warm white).
+- **Directional Cinematic Overlay**:
+  - Replaced flat gradient with a directional overlay: stronger darkening on the left behind editorial text, minimal/natural center leaving the backpack and keys untouched, and subtle top/bottom vignettes for contrast.
+- **Typographic Minimalist Navbar & Scroll Stabilization**:
+  - Restyled navigation into typographic links (`Home`, `Browse`, `FAQ`, `+ Report`), replaced capsule pill with a subtle warm gold underline on active `Home`, rendered `Sign in` as a compact off-white rectangle (`#F7F6F2`, `rounded-[18px]`, dark text), and quieted the theme toggle.
+  - **Scroll Stabilization**: Unified the desktop navigation into a single consistent DOM architecture across both scrolled and unscrolled states. Eliminated layout shifts, item movements toward the right, font-size jumps (`14.5px` consistently maintained), and capsule pop-ins on scroll.
+  - **Optical Breathing Room**: Increased desktop navbar container height to `md:h-[68px]` (with mobile preserved at `h-14`), providing a comfortable ~26px optical distance from the top border of the browser window.
+  - **Static Search Surface**: Stripped all dynamic elevation and translations (`focus-within:-translate-y-[1px]`, arrow `hover:translate-x-0.5`, animated shadow scaling). Ensured the container, search icon (`pointer-events-none`), and arrow submit button remain 100% static on click, focus, and hover without any glitch or jitter.
+  - **Active State Parity for Report Action**: Converted `+ Report` into a full `NavLink` (and synced manual path detection for guest auth prompts) with the exact active underline indicator and typography, ensuring visual continuity when navigating to `/post`.
+  - **Dark & Light Mode Typography on Scroll**: Enforced pure white typography (`dark:text-white/75 dark:hover:text-white`) for all inactive nav items across dark mode scroll, preventing muted dark gray blending over frosted glass surfaces, with graceful adaptation to `text-neutral-600 hover:text-neutral-900` under light mode.
+  - **Dynamic Underline Theming**: Retained the warm editorial gold underline (`#B8A56A`) exclusively over the hero campus photograph overlay to complement warm sunlight hues, and unified the active indicator on scroll and across inner tabs (`Browse`, `FAQ`, `Dashboard`, `+ Report`) to SFIT's vibrant primary blue (`bg-primary`) in both dark and light modes.
+  - **Butter-Smooth Underline Morphing & Strict Bounding**: Integrated Framer Motion's `layoutId="activeNavUnderline"` with a tuned physics spring (`stiffness: 350, damping: 30`) that smoothly glides and resizes the active indicator across tabs on navigation. On `+ Report`, isolated the underline strictly to the word "Report" (from R to t) by placing the plus icon outside the relative coordinate wrapper.
+  - **Zero-Y Translation Guard & Initial Underline Fixes**: Clamped Framer Motion's layout projection via `transformTemplate` and unified all tab labels under identical `inline-flex items-center` coordinate contexts.
+
+### 10.16 Single Continuous Sliding Indicator Architecture (September 2026)
+- **Eliminated `layoutId` Projection Popping & Post-Motion Resizing Glitches**:
+  - Replaced Framer Motion's shared FLIP `layoutId` projection across separate unmounting/mounting DOM nodes with a single, persistent `<motion.span>` indicator housed inside the desktop navigation container (`navLinksRef`).
+  - **Root Cause of the Resize Glitch**: Framer Motion's `layoutId` cross-element projection relies on CSS `transform: translate3d(...) scale(...)`. When moving between words with different lengths (e.g., "Home" ~40px vs. "Browse" ~52px vs. "Report" ~46px), Framer Motion scales the element to simulate width changes. At the end of the motion, the transform is removed to restore native layout styling, causing an abrupt visual snap/pop where the underline increases or decreases in size after coming to rest.
+  - **Single Indicator Solution**:
+    - Uses a dedicated `useCallback` / `useLayoutEffect` DOM measurement cycle that reads `targetRect.left - navRect.left` and `targetRect.width` directly from the active tab's `data-nav-target` span.
+    - Directly animates `x` (translation in pixels) and `width` (in pixels) simultaneously using a unified spring (`type: "spring", stiffness: 380, damping: 30, mass: 0.8`).
+    - Because `width` interpolates directly in pixels throughout the entire flight, the indicator smoothly morphs its width in real-time as it glides horizontally, arriving at the exact destination width at the exact same millisecond as the position.
+    - Zero transform cleanup, zero rest-delta cutoffs, and zero post-motion sizing jumps.
+  - **Fixed 2px Height & True Pill Radius**:
+    - Because `scaleY` and `scaleX` transforms are completely eliminated, `height: 2px` and `rounded-full` remain 100% physically constant and distortion-free on every tab.
+  - **Absolute Scroll Decoupling**:
+    - Underline positioning is computed entirely relative to the navbar container (`navLinksRef`), making it mathematically impossible for window scroll position or route scroll resets to trigger vertical launch bugs.
+  - **Strict Word Bounding for `+ Report`**:
+    - The `data-nav-target` attribute is applied strictly to the `<span>Report</span>` text wrapper, keeping the `+` icon and its margin excluded so the line spans strictly from 'R' to 't'.
+
+### 10.17 Mobile Floating Dock — 10/10 Apple VisionOS Glassmorphic Composition (September 2026)
+- **Eliminated Muddy Translucency, "Dirty Glass", and Contrast Blindness**:
+  - Replaced the low-opacity (15%) background veil that allowed outdoor photographic backdrops (grass, stone bench, deep shadow) to bleed through into a murky desaturated khaki sludge.
+  - **Light Mode Porcelain Glass (`rgba(250, 250, 252, 0.88)`)**:
+    - Upgraded base material to 88% opaque frosted porcelain glass with heavy Apple diffusion (`backdrop-filter: blur(28px) saturate(190%)`).
+    - Even when floating over dark photographic backgrounds or deep grass, the dock maintains a crisp, bright, luxurious porcelain canvas with soft blurred ambient tinting behind.
+    - Hairline outer border (`1px solid rgba(0, 0, 0, 0.08)`) and high-specular inner bevel (`inset 0 1px 0 rgba(255, 255, 255, 0.95)`).
+  - **Dark Mode Obsidian Crystal (`rgba(18, 18, 22, 0.82)`)**:
+    - Deep obsidian glass with refined specular edge (`1px solid rgba(255, 255, 255, 0.10)`) and deep ambient shadow (`0 22px 48px -6px rgba(0, 0, 0, 0.55)`).
+- **Harmonious Active Pill & Concentric Geometry**:
+  - Replaced the stark "blinding sticker" white block with a tactile Apple segmented-control capsule (`#FFFFFF` in light mode with `box-shadow: 0 3px 10px -1px rgba(0, 0, 0, 0.10), 0 1px 3px rgba(0, 0, 0, 0.04)`), creating a natural, elevated thumb over the porcelain track.
+  - In dark mode, uses a luminous translucent glass thumb (`rgba(255, 255, 255, 0.13)` with `inset 0 1px 0 rgba(255, 255, 255, 0.22)`).
+  - Enforced true concentric geometry: outer dock `border-radius: 30px` with `4px` padding; inner pill `border-radius: 26px` (`30px - 4px = 26px`).
+- **Pristine Typographic & Icon Contrast**:
+  - **Active State**: Solid `#111113` deep black in light mode (18:1 contrast on white pill); `#FFFFFF` pure white in dark mode.
+  - **Inactive States (`Browse`, `Report`, `You`)**: `rgba(17, 17, 19, 0.52)` slate in light mode (> 6.5:1 contrast on porcelain glass, exceeding WCAG AA); `rgba(255, 255, 255, 0.55)` luminous white in dark mode.
+  - Added tactile press depression (`:active { transform: scale(0.96); }`) and micro-lift on active icons (`transform: scale(1.04) translateY(-0.5px)`).
+
+
+
+
+
+
+
+
+
+
+
+
 
 

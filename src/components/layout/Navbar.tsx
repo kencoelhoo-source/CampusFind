@@ -1,10 +1,11 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Bell, LogOut, Sun, Moon, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -38,8 +39,65 @@ export function Navbar() {
   const { openAuthPrompt } = useAuthPrompt();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [scrolled, setScrolled] = useState(false);
+
+  const navLinksRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
+  const [indicator, setIndicator] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    opacity: number;
+  }>({
+    x: 0,
+    y: 0,
+    width: 0,
+    opacity: 0,
+  });
+
+  const updateUnderline = useCallback(() => {
+    if (!navLinksRef.current) return;
+    const activeEl = navLinksRef.current.querySelector<HTMLElement>('[data-active="true"]');
+    const target = activeEl?.querySelector<HTMLElement>('[data-nav-target]');
+
+    if (target && navLinksRef.current) {
+      const navRect = navLinksRef.current.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      if (targetRect.width > 0) {
+        setIndicator({
+          x: targetRect.left - navRect.left,
+          y: targetRect.bottom - navRect.top + 6,
+          width: targetRect.width,
+          opacity: 1,
+        });
+        return;
+      }
+    }
+    setIndicator((prev) => ({ ...prev, opacity: 0 }));
+  }, []);
+
+  useLayoutEffect(() => {
+    updateUnderline();
+  }, [pathname, search, updateUnderline]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      isFirstRender.current = false;
+    }, 60);
+
+    const onResize = () => updateUnderline();
+    window.addEventListener("resize", onResize);
+
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(updateUnderline);
+    }
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [updateUnderline]);
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["unread-notifications-count", user?.id],
@@ -154,6 +212,24 @@ export function Navbar() {
     </>
   ) : null;
 
+  const getNavLinkClass = (isActive: boolean) =>
+    cn(
+      "relative py-1 text-[14.5px] font-medium tracking-tight transition-colors duration-200",
+      overlay
+        ? isActive
+          ? "text-[#F5F2EA]"
+          : "text-[#F5F2EA]/75 hover:text-[#F5F2EA]"
+        : isActive
+          ? "text-neutral-900 dark:text-white"
+          : "text-neutral-600 hover:text-neutral-900 dark:text-white/75 dark:hover:text-white",
+    );
+
+  const getUnderlineClass = () =>
+    cn(
+      "absolute h-[2px] rounded-full pointer-events-none transition-colors duration-200",
+      overlay ? "bg-[#B8A56A]" : "bg-primary",
+    );
+
   return (
     <nav
       className={cn(
@@ -161,60 +237,122 @@ export function Navbar() {
         overlay ? "nav-overlay" : "glass-nav",
       )}
     >
-      <div className="container flex h-14 items-center justify-between">
+      <div className="container flex h-14 md:h-[68px] items-center justify-between">
         <Logo inverted={overlay} />
 
-        <div className="hidden items-center gap-1 md:flex">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn(
-                  "rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-300 ease-apple",
-                  muted,
-                  isActive && active,
-                )
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
-
-          {user && (
-            <NavLink
-              to="/dashboard"
-              className={({ isActive }) =>
-                cn(
-                  "rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-300 ease-apple",
-                  muted,
-                  isActive && active,
-                )
-              }
-            >
-              Dashboard
-            </NavLink>
-          )}
-
-          {loading ? (
-            <div className={cn("ml-2 h-8 w-20 animate-pulse rounded-full", overlay ? "bg-white/20" : "bg-muted")} />
-          ) : user ? (
-            <>
-              <Button
-                size="sm"
-                className={cn("ml-1 gap-1", overlay && "bg-white text-black hover:bg-white/90")}
-                asChild
+        {/* Desktop Navigation (Consistent layout, zero layout shifts, identical sizing on scroll) */}
+        <div className="hidden items-center gap-7 lg:gap-8 md:flex">
+          <div ref={navLinksRef} className="relative flex items-center gap-7 lg:gap-8">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => getNavLinkClass(isActive)}
               >
-                <Link to="/post">
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Report</span>
-                </Link>
-              </Button>
+                {({ isActive }) => (
+                  <span
+                    data-active={isActive ? "true" : "false"}
+                    className="relative inline-flex items-center"
+                  >
+                    <span data-nav-target>{item.label}</span>
+                  </span>
+                )}
+              </NavLink>
+            ))}
+
+            {user && (
+              <NavLink
+                to="/dashboard"
+                className={({ isActive }) => getNavLinkClass(isActive)}
+              >
+                {({ isActive }) => (
+                  <span
+                    data-active={isActive ? "true" : "false"}
+                    className="relative inline-flex items-center"
+                  >
+                    <span data-nav-target>Dashboard</span>
+                  </span>
+                )}
+              </NavLink>
+            )}
+
+            {/* + Report */}
+            {user ? (
+              <NavLink
+                to="/post"
+                className={({ isActive }) => getNavLinkClass(isActive)}
+              >
+                {({ isActive }) => (
+                  <span
+                    data-active={isActive ? "true" : "false"}
+                    className="inline-flex items-center"
+                  >
+                    <span className="mr-1 select-none font-normal opacity-70">+</span>
+                    <span className="relative inline-flex items-center">
+                      <span data-nav-target>Report</span>
+                    </span>
+                  </span>
+                )}
+              </NavLink>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthPrompt({ actionType: "report", redirectUrl: "/post" })}
+                className={getNavLinkClass(pathname === "/post")}
+              >
+                <span
+                  data-active={pathname === "/post" ? "true" : "false"}
+                  className="inline-flex items-center"
+                >
+                  <span className="mr-1 select-none font-normal opacity-70">+</span>
+                  <span className="relative inline-flex items-center">
+                    <span data-nav-target>Report</span>
+                  </span>
+                </span>
+              </button>
+            )}
+
+            {/* Single Continuous Sliding Underline Indicator */}
+            <motion.span
+              className={getUnderlineClass()}
+              style={{
+                left: 0,
+                top: indicator.y,
+              }}
+              initial={false}
+              animate={{
+                x: indicator.x,
+                width: indicator.width,
+                opacity: indicator.opacity,
+              }}
+              transition={
+                isFirstRender.current
+                  ? { duration: 0 }
+                  : {
+                      type: "spring",
+                      stiffness: 380,
+                      damping: 30,
+                      mass: 0.8,
+                    }
+              }
+            />
+          </div>
+
+          {/* User Profile or Sign In */}
+          {loading ? (
+            <div className="h-[36px] w-20 animate-pulse rounded-[18px] bg-muted/60" />
+          ) : user ? (
+            <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
                 size="icon"
-                className={cn("relative", overlay ? "text-white hover:bg-white/10 hover:text-white" : "")}
+                className={cn(
+                  "relative h-8 w-8 transition-colors duration-200",
+                  overlay
+                    ? "text-[#F5F2EA]/80 hover:bg-white/10 hover:text-white"
+                    : "text-neutral-600 hover:text-neutral-900 hover:bg-black/5 dark:text-white/75 dark:hover:text-white dark:hover:bg-white/10",
+                )}
                 asChild
               >
                 <Link to="/dashboard?tab=notifications" aria-label="Notifications">
@@ -228,42 +366,36 @@ export function Navbar() {
                 </Link>
               </Button>
               {accountMenu}
-            </>
+            </div>
           ) : (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                className={cn(
-                  "ml-1 h-8 gap-1 rounded-full px-3 text-[13px] font-medium transition-colors duration-200 ease-apple",
-                  overlay
-                    ? "text-white/85 hover:bg-white/15 hover:text-white"
-                    : "text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/[0.08] dark:hover:text-white",
-                )}
-                onClick={() => openAuthPrompt({ actionType: "report", redirectUrl: "/post" })}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Report</span>
-              </Button>
-              <Button
-                size="sm"
-                className={cn("ml-1 h-8 rounded-full px-3.5 text-[13px]", overlay && "bg-white text-black hover:bg-white/90")}
-                asChild
-              >
-                <Link to="/auth">Sign in</Link>
-              </Button>
-            </>
+            <Link
+              to="/auth"
+              className={cn(
+                "inline-flex h-[36px] items-center justify-center rounded-[18px] px-5 text-[14px] font-medium transition-all duration-200 shadow-[0_1px_3px_rgba(0,0,0,0.08)]",
+                overlay
+                  ? "bg-[#F7F6F2] text-[#171717] hover:bg-white"
+                  : "bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-[#F7F6F2] dark:text-[#171717] dark:hover:bg-white",
+              )}
+            >
+              Sign in
+            </Link>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn("ml-0.5", overlay && "text-white hover:bg-white/10 hover:text-white")}
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
             onClick={toggleTheme}
+            className={cn(
+              "p-1.5 transition-colors duration-200",
+              overlay
+                ? "text-[#F5F2EA]/65 hover:text-[#F5F2EA]"
+                : "text-neutral-600 hover:text-neutral-900 dark:text-white/75 dark:hover:text-white",
+            )}
             title="Toggle theme"
+            aria-label="Toggle theme"
           >
-            {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-          </Button>
+            {theme === "light" ? <Moon className="h-[15px] w-[15px]" /> : <Sun className="h-[15px] w-[15px]" />}
+          </button>
         </div>
 
         <div className="flex items-center gap-2 md:hidden">

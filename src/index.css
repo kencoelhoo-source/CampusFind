@@ -376,28 +376,28 @@
     .mobile-dock {
       display: block;
       position: fixed;
-      left: 12px;
-      right: 12px;
-      bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      left: 14px;
+      right: 14px;
+      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
       z-index: 45;
       transform: translateZ(0);
-      border-radius: 28px;
+      border-radius: 30px;
       overflow: hidden;
       background: 
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E"),
-        rgba(255, 255, 255, 0.15);
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.015'/%3E%3C/svg%3E"),
+        rgba(250, 250, 252, 0.88);
       background-repeat: repeat;
       background-size: 150px 150px, auto;
       
-      -webkit-backdrop-filter: blur(16px) saturate(180%);
-      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
+      backdrop-filter: blur(28px) saturate(190%);
       
-      border: 1px solid rgba(255, 255, 255, 0.3);
+      border: 1px solid rgba(0, 0, 0, 0.08);
       box-shadow:
-        0 14px 34px -4px rgba(0, 0, 0, 0.1),
+        0 18px 40px -6px rgba(0, 0, 0, 0.12),
         0 4px 14px -2px rgba(0, 0, 0, 0.05),
-        inset 0 1px 0 rgba(255, 255, 255, 0.6),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.02);
       
       -webkit-tap-highlight-color: transparent;
       contain: paint layout style;
@@ -408,24 +408,24 @@
 
     .dark .mobile-dock {
       background: 
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E"),
-        rgba(20, 20, 24, 0.15);
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E"),
+        rgba(18, 18, 22, 0.82);
       background-repeat: repeat;
       background-size: 150px 150px, auto;
       
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.10);
       box-shadow:
-        0 16px 40px rgba(0, 0, 0, 0.5),
-        0 4px 16px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+        0 22px 48px -6px rgba(0, 0, 0, 0.55),
+        0 6px 18px -2px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.25);
     }
   }
 
   .dock-glass {
     position: relative;
     overflow: hidden;
-    border-radius: 28px;
+    border-radius: 30px;
     background: transparent;
     isolation: isolate;
     -webkit-mask-image: -webkit-radial-gradient(white, black);
@@ -437,7 +437,7 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
     align-items: stretch;
     padding: 4px;
-    border-radius: 28px;
+    border-radius: 30px;
     touch-action: none;
     user-select: none;
   }
@@ -448,11 +448,11 @@
     inset: 0;
     border-radius: inherit;
     z-index: 2;
-    background: linear-gradient(180deg, hsl(0 0% 100% / 0.45) 0%, hsl(0 0% 100% / 0.06) 38%, transparent 64%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.08) 32%, transparent 60%);
   }
 
   .dark .dock-specular {
-    background: linear-gradient(180deg, hsl(0 0% 100% / 0.14) 0%, hsl(0 0% 100% / 0.03) 36%, transparent 62%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 32%, transparent 60%);
   }
 
   .dock-indicator {
@@ -471,12 +471,12 @@
   .dock-pill {
     width: 100%;
     height: 100%;
-    border-radius: 24px;
+    border-radius: 26px;
     background: #ffffff;
-    border: 1px solid rgba(0, 0, 0, 0.09);
+    border: 1px solid rgba(0, 0, 0, 0.06);
     box-shadow:
-      0 3px 12px -1px rgba(0, 0, 0, 0.16),
-      0 1px 4px rgba(0, 0, 0, 0.08),
+      0 3px 10px -1px rgba(0, 0, 0, 0.10),
+      0 1px 3px rgba(0, 0, 0, 0.04),
       inset 0 1px 0 #ffffff;
     transform: scale(1, 1);
     transform-origin: center center;
@@ -485,11 +485,11 @@
   }
 
   .dark .dock-pill {
-    background: rgba(255, 255, 255, 0.16);
-    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.13);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      0 4px 16px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
   }
 
   .dock-tab {
@@ -506,21 +506,37 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: hsl(var(--foreground) / 0.55);
-    border-radius: 24px;
+    color: rgba(17, 17, 19, 0.52);
+    border-radius: 26px;
     cursor: pointer;
     text-decoration: none;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
-    transition: color 0.25s ease;
+    transition: color 0.2s ease, transform 0.15s ease;
   }
 
-  .dark .dock-tab {
-    color: hsl(var(--foreground) / 0.65);
+  .dock-tab:hover {
+    color: rgba(17, 17, 19, 0.82);
+  }
+
+  .dock-tab:active {
+    transform: scale(0.96);
   }
 
   .dock-tab.active {
-    color: hsl(var(--foreground));
+    color: #111113;
+  }
+
+  .dark .dock-tab {
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  .dark .dock-tab:hover {
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .dark .dock-tab.active {
+    color: #ffffff;
   }
 
   .dock-icon {
@@ -533,7 +549,7 @@
   }
 
   .dock-tab.active .dock-icon {
-    transform: scale(1.06);
+    transform: scale(1.04) translateY(-0.5px);
   }
 
   .dock-icon svg {
@@ -553,7 +569,7 @@
     white-space: nowrap;
     overflow: hidden;
     letter-spacing: -0.01em;
-    transition: font-weight 0.2s ease, transform 0.2s ease;
+    transition: font-weight 0.2s ease;
   }
 
   .dock-tab.active .dock-label {
