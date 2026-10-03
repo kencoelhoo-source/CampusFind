@@ -1,5 +1,234 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getSimulatedAIResponse } from "@/data/ai-responses";
+
+const ANATOMY_LOST_MARKERS = [
+  "pre-attached",
+  "nobody ever will",
+  "Category check",
+  "do NOT write that Proof Note",
+  "nothing to lose",
+  "'Mark returned' button",
+];
+
+const isAnatomyComeback = (response: string) =>
+  ANATOMY_LOST_MARKERS.some((marker) => response.includes(marker));
+
+describe("FAQ Assistant — 'lost my <not an item>' comebacks", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("answers the private-part query with a comeback instead of the generic fallback", () => {
+    const response = getSimulatedAIResponse("___person lost his private part");
+    expect(isAnatomyComeback(response)).toBe(true);
+    expect(response).not.toContain("Browse board");
+    expect(response).not.toMatch(/\{\w+\}/);
+  });
+
+  it("fills pronouns from the owner word in the query", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    expect(getSimulatedAIResponse("my friend lost his dick")).toMatch(/^He lost the one item/);
+    expect(getSimulatedAIResponse("I lost my private parts")).toMatch(/^You lost the one item/);
+    expect(getSimulatedAIResponse("she lost her privates")).toMatch(/^She lost the one item/);
+    expect(getSimulatedAIResponse("someone lost their balls")).toMatch(/^They lost the one item/);
+  });
+
+  it("handles passive and 'where is' phrasing", () => {
+    expect(isAnatomyComeback(getSimulatedAIResponse("his private part is missing"))).toBe(true);
+    expect(isAnatomyComeback(getSimulatedAIResponse("where is my pp"))).toBe(true);
+  });
+
+  it("uses the found variant when someone claims to have found one", () => {
+    const response = getSimulatedAIResponse("found a dick near the canteen");
+    expect(
+      response.includes("do NOT upload a photo") ||
+        response.includes("never speak of this again") ||
+        response.includes("campus security needs to know"),
+    ).toBe(true);
+  });
+
+  it("does not treat sports balls as anatomy", () => {
+    const response = getSimulatedAIResponse("lost my cricket balls");
+    expect(isAnatomyComeback(response)).toBe(false);
+    expect(response).toContain('"cricket balls"');
+  });
+
+  it("covers virginity, mind and heart losses", () => {
+    expect(getSimulatedAIResponse("my roommate lost his virginity")).toMatch(
+      /non-refundable|security desk|outside our jurisdiction/,
+    );
+    expect(getSimulatedAIResponse("I think I lost my mind")).toMatch(/sanity|ISE|half the campus/);
+    expect(getSimulatedAIResponse("lost my girlfriend")).toMatch(/Heartbreak|lost love|people aren't property/);
+  });
+
+  it("still routes a person's lost item to the item answer", () => {
+    expect(getSimulatedAIResponse("my girlfriend lost her calculator")).toContain("Casio fx-991EX");
+  });
+
+  it("roasts vulgar anatomy words with no lost/found context", () => {
+    expect(getSimulatedAIResponse("dick")).toMatch(/biology practical|search history|HOD/);
+  });
+});
+
+describe("FAQ Assistant — classmates' names Foggy doesn't know", () => {
+  it("says clearly it doesn't know a bare name", () => {
+    expect(getSimulatedAIResponse("rahul")).toMatch(/^I don't know anyone called Rahul\./);
+    expect(getSimulatedAIResponse("Priya Sharma")).toMatch(/^I don't know anyone called Priya Sharma\./);
+    expect(getSimulatedAIResponse("aditya from comps")).toMatch(/^I don't know anyone called Aditya\./);
+  });
+
+  it("answers 'who is' questions without looking anyone up", () => {
+    const response = getSimulatedAIResponse("who is rahul");
+    expect(response).toMatch(/^I don't know anyone called Rahul\./);
+    expect(response).toContain("no student directory");
+  });
+
+  it("also handles 'where is <name>'", () => {
+    expect(getSimulatedAIResponse("where is sneha")).toMatch(/^I don't know anyone called Sneha\./);
+  });
+
+  it("gives the private-part comebacks whoever the name is", () => {
+    for (const query of [
+      "rahul lost his private part",
+      "rahul's private part is missing",
+      "rahuls dick is gone",
+      "puneet lost his private part",
+      "virat kohli lost his private part",
+      "my friend lost his private part",
+    ]) {
+      const response = getSimulatedAIResponse(query);
+      expect(isAnatomyComeback(response)).toBe(true);
+      expect(response).not.toContain("anyone called");
+    }
+  });
+
+  it("refuses insults about a classmate that no joke covers", () => {
+    for (const query of ["priya is a slut", "is priya gay", "aditya gay hai"]) {
+      expect(getSimulatedAIResponse(query)).toMatch(
+        /^I don't know anyone called (Priya|Aditya), so I can't tell you anything about that\./,
+      );
+    }
+    // Abuse words that already have a roast keep it.
+    expect(getSimulatedAIResponse("rahul is a chutiya")).not.toContain("anyone called");
+  });
+
+  it("answers item questions straight, without 'I don't know <name>'", () => {
+    const wallet = getSimulatedAIResponse("rahul sharma lost his wallet");
+    expect(wallet).not.toContain("anyone called");
+    expect(wallet).toContain("block your bank cards");
+
+    const calculator = getSimulatedAIResponse("my friend rahul lost his calculator");
+    expect(calculator).not.toContain("anyone called");
+    expect(calculator).toContain("Casio fx-991EX");
+
+    const tiffin = getSimulatedAIResponse("rahul lost his tiffin box");
+    expect(tiffin).not.toContain("anyone called");
+    expect(tiffin).toContain('"tiffin box"');
+
+    expect(getSimulatedAIResponse("do you know rahul who lost his wallet")).not.toContain("anyone called");
+  });
+
+  it("gives celebrities their own answers", () => {
+    expect(getSimulatedAIResponse("virat kohli lost his wallet")).toContain("Kohli");
+    expect(getSimulatedAIResponse("who is elon musk")).toMatch(/Elon/);
+    expect(getSimulatedAIResponse("messi")).toContain("Messi");
+    expect(getSimulatedAIResponse("rajinikanth")).toContain("Rajinikanth");
+    expect(getSimulatedAIResponse("rahul gandhi")).toMatch(/Bharat Jodo|press conference/);
+  });
+
+  it("treats a bare first name as a classmate, even if a celebrity shares it", () => {
+    expect(getSimulatedAIResponse("virat")).toMatch(/^I don't know anyone called Virat\./);
+    expect(getSimulatedAIResponse("who is rohit")).toMatch(/^I don't know anyone called Rohit\./);
+  });
+
+  it("keeps the jokes for names that are already in Foggy", () => {
+    expect(getSimulatedAIResponse("kiran")).not.toContain("I don't know anyone");
+    expect(getSimulatedAIResponse("puneet")).not.toContain("I don't know anyone");
+    expect(getSimulatedAIResponse("who is ken coelho")).toContain("Ken Coelho");
+  });
+
+  it("does not mistake items or ordinary words for names", () => {
+    expect(getSimulatedAIResponse("my tiffin is missing")).not.toContain("anyone called");
+    expect(getSimulatedAIResponse("xerox shop timings")).not.toContain("anyone called");
+    expect(getSimulatedAIResponse("this site is stupid")).not.toContain("anyone called");
+    expect(getSimulatedAIResponse("yesterday i lost my wallet")).not.toContain("anyone called");
+  });
+
+  it("handles small talk instead of treating it as a name", () => {
+    expect(getSimulatedAIResponse("hello")).toContain("I'm Foggy");
+    expect(getSimulatedAIResponse("thanks")).toContain("Anytime");
+  });
+});
+
+describe("FAQ Assistant — answers from the asker's side (lost vs found)", () => {
+  it("gives lost-wallet advice to someone who lost a wallet", () => {
+    const response = getSimulatedAIResponse("i lost my wallet");
+    expect(response).toContain("block your bank cards");
+    expect(response).not.toMatch(/if you find/i);
+  });
+
+  it("gives finder advice to someone who found a wallet", () => {
+    expect(getSimulatedAIResponse("i found a wallet near the canteen")).toContain("Head of Campus Security");
+  });
+
+  it("treats 'someone found my X' as the person who lost it", () => {
+    expect(getSimulatedAIResponse("someone found my wallet")).toContain("block your bank cards");
+    expect(getSimulatedAIResponse("omkar found my calculator")).toContain("check the exam hall");
+  });
+
+  it("congratulates someone who got their own item back", () => {
+    expect(getSimulatedAIResponse("i found my wallet")).toContain("Glad it turned up");
+  });
+
+  it("covers the other ways people say they lost something", () => {
+    expect(getSimulatedAIResponse("my phone is missing")).toContain("Find My");
+    expect(getSimulatedAIResponse("cant find my earbuds")).toContain("last connected");
+    expect(getSimulatedAIResponse("where is my bottle")).toContain("cleaning staff");
+  });
+
+  it("gives finder advice for found phones and earbuds", () => {
+    expect(getSimulatedAIResponse("found a phone in the lab")).toContain("NEVER hand a found phone over");
+    expect(getSimulatedAIResponse("picked up some earbuds")).toContain("Don't pair them");
+  });
+
+  it("uses the general answer when the question doesn't say", () => {
+    expect(getSimulatedAIResponse("wallet")).toContain("Head of Campus Security");
+  });
+});
+
+describe("FAQ Assistant — safety and false positives", () => {
+  it("puts crisis phrases ahead of every other tier", () => {
+    expect(getSimulatedAIResponse("lost my will to live")).toContain("Vandrevala");
+    expect(getSimulatedAIResponse("ken i want to die")).toContain("Vandrevala");
+  });
+
+  it("does not fire meme or location answers on substrings", () => {
+    expect(getSimulatedAIResponse("how do i modify my post")).not.toContain("Mitron");
+    expect(getSimulatedAIResponse("how do i message the finder")).not.toContain("canteen");
+    expect(getSimulatedAIResponse("where is the administrative office")).not.toContain("harassment");
+  });
+
+  it("does not hijack common first names", () => {
+    expect(getSimulatedAIResponse("kiran lost her wallet")).toContain("block your bank cards");
+    expect(getSimulatedAIResponse("ken lost his keys")).toContain("Bike keys");
+  });
+
+  it("states the real posting limits", () => {
+    const response = getSimulatedAIResponse("what is the posting limit");
+    expect(response).toContain("5 listings per hour");
+    expect(response).toContain("15 claims per 24 hours");
+  });
+
+  it("matches plurals", () => {
+    expect(getSimulatedAIResponse("lost my umbrellas")).toContain("Mumbai monsoons");
+  });
+
+  it("echoes unknown items back in the fallback", () => {
+    const response = getSimulatedAIResponse("lost my tiffin box in class");
+    expect(response).toContain('"tiffin box"');
+    expect(response).toContain("Main Security Cabin");
+  });
+});
 
 describe("FAQ Assistant Inference Engine (Foggy)", () => {
   describe("Troll & Heckler Defense Protocol", () => {
@@ -160,8 +389,15 @@ describe("FAQ Assistant Inference Engine (Foggy)", () => {
   });
 
   describe("Campus Edge Cases & Rules", () => {
-    it("returns critical security advice for lost SFIT hall tickets", () => {
+    it("sends someone who lost a hall ticket to get a duplicate", () => {
       const response = getSimulatedAIResponse("I lost my hall ticket for the exams");
+      expect(response).toContain("Exam Control Room");
+      expect(response).toContain("duplicate hall ticket");
+      expect(response).not.toContain("DO NOT post it here");
+    });
+
+    it("tells someone who found a hall ticket not to post it", () => {
+      const response = getSimulatedAIResponse("found a hall ticket in the corridor");
       expect(response).toContain("Exam Control Room");
       expect(response).toContain("DO NOT post it here");
     });

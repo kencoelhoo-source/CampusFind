@@ -1,7 +1,7 @@
 export const FAQS = [
   {
     q: "Who can use CampusFind?",
-    a: "Only SFIT Google accounts: @student.sfit.ac.in for students, and @sfit.ac.in for faculty and staff. Personal Gmail is blocked.",
+    a: "Anyone can browse. Posting and claiming need an SFIT Google account: @student.sfit.ac.in for students, and @sfit.ac.in for faculty and staff. Personal Gmail is blocked.",
   },
   {
     q: "How does a return actually work?",
@@ -9,7 +9,7 @@ export const FAQS = [
   },
   {
     q: "Will I get an email if someone claims my item?",
-    a: "You always get an in-app alert (bell + Dashboard → Alerts/Inbox), including if the site is open in another tab. Email is sent when CampusFind mail is configured (Resend). Turn on desktop notifications on the Alerts tab to get a system banner while the tab is in the background.",
+    a: "You always get an in-app alert (the bell, plus Dashboard → Alerts and Inbox), even if CampusFind is open in another tab. When CampusFind email is enabled, a copy also lands in your SFIT inbox. Turn on desktop notifications in the Alerts tab to get a system banner while the tab is in the background.",
   },
   {
     q: "Do I have to answer verification questions?",
@@ -24,8 +24,16 @@ export const FAQS = [
     a: "Decline it. You do not have to meet anyone. For phones, wallets, or IDs, prefer a staffed campus spot, and loop in college security if it feels serious.",
   },
   {
-    q: "Can I delete a listing?",
-    a: "Yes. Dashboard → Posted → delete. Photos are removed with the post. Marking a listing returned takes it off the public board but keeps the record so you can reopen it.",
+    q: "Can I delete or edit a listing?",
+    a: "You can delete it any time from Dashboard → Posted. It and its photos leave the board right away, and the photos are permanently erased within 30 days. There’s no edit yet — delete and re-post to fix a mistake. If the item went home, use “Mark returned” instead: it stays on the board tagged Returned, closes pending claims, and can be reopened.",
+  },
+  {
+    q: "Are there any limits?",
+    a: "Up to 5 new listings per hour and 15 claims per day per account, with up to 5 photos per listing. That keeps the board free of spam without getting in the way of real use.",
+  },
+  {
+    q: "I found a phone, wallet, or ID. What should I do?",
+    a: "Hand it to the Main Security Cabin or the administrative office, then post it as Found → “Left at a desk” and name the desk. The owner collects it there, so you never have to meet a stranger.",
   },
   {
     q: "Is this the official SFIT lost-and-found desk?",
