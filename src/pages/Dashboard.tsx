@@ -460,12 +460,12 @@ export default function Dashboard() {
     const nextDismissed = Array.from(new Set([...dismissedClaimIds, claimId]));
     setDismissedClaimIds(nextDismissed);
     if (user) {
+      // Hidden locally only: the claim row stays so a declined claimant can't delete and re-claim.
       try {
         localStorage.setItem(`campusfind_dismissed_claims_${user.id}`, JSON.stringify(nextDismissed));
       } catch {
         // ignore storage errors
       }
-      void supabase.from("claims").delete().eq("id", claimId);
     }
     toast.success("Claim removed from your history", {
       action: {
@@ -500,7 +500,6 @@ export default function Dashboard() {
       } catch {
         // ignore
       }
-      void supabase.from("claims").delete().in("id", resolvedIds);
     }
     toast.success("Resolved claims cleared", {
       action: {

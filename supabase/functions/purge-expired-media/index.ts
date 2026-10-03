@@ -18,16 +18,19 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader !== `Bearer ${Deno.env.get("CRON_SECRET") || "local-dev-secret"}`) {
-      // In production, you'd want a secure secret to trigger this
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    
+
     if (!supabaseUrl || !serviceKey) {
       return json({ error: "Missing server configuration" }, 500);
+    }
+
+    // The gateway accepts the public anon key as a valid JWT, so check the caller ourselves:
+    // only the cleanup workflow (service role key) or an explicit CRON_SECRET may run this.
+    const allowedTokens = [serviceKey, Deno.env.get("CRON_SECRET")].filter(Boolean);
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!allowedTokens.some((token) => authHeader === `Bearer ${token}`)) {
+      return json({ error: "Unauthorized" }, 401);
     }
 
     const adminClient = createClient(supabaseUrl, serviceKey);

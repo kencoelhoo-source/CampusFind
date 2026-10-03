@@ -87,7 +87,6 @@ export default function ItemDetail() {
       } catch {
         // ignore local storage issues
       }
-      void supabase.from("claims").delete().eq("id", claimId);
     }
     toast.success("Claim removed from your history");
     await queryClient.invalidateQueries({ queryKey: ["dashboard", user?.id] });

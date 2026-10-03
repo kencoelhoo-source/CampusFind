@@ -22,13 +22,34 @@ interface Payload {
   itemId?: string;
 }
 
-interface OutboundMail {
-  toUserId: string;
-  subject: string;
-  heading: string;
-  body: string;
-  hrefPath: string;
+interface NotificationRow {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  related_item_id: string | null;
+  kind: Kind;
 }
+
+// Emails mirror in-app alerts. Only alerts created in the last few minutes count,
+// so an old claim can't be used to re-send mail later.
+const EMAIL_WINDOW_MS = 15 * 60 * 1000;
+const MAX_EMAILS_PER_CALL = 10;
+
+const TEMPLATES: Record<Kind, { heading: string; hrefPath: (row: NotificationRow) => string }> = {
+  claim_submitted: { heading: "Someone contacted you about a listing", hrefPath: () => "/dashboard?tab=incoming" },
+  claim_approved: { heading: "Your claim was accepted", hrefPath: () => "/dashboard?tab=my-claims" },
+  claim_rejected: { heading: "Your claim was declined", hrefPath: () => "/dashboard?tab=my-claims" },
+  claim_withdrawn: { heading: "A claim was withdrawn", hrefPath: () => "/dashboard?tab=incoming" },
+  claim_superseded: { heading: "Another claim was accepted", hrefPath: () => "/dashboard?tab=my-claims" },
+  item_returned: { heading: "Item marked returned", hrefPath: () => "/dashboard?tab=my-claims" },
+  item_deleted: { heading: "Listing removed", hrefPath: () => "/dashboard?tab=my-claims" },
+  possible_match: {
+    heading: "A listing may match yours",
+    hrefPath: (row) => (row.related_item_id ? `/items/${row.related_item_id}` : "/dashboard?tab=notifications"),
+  },
+  meetup_updated: { heading: "Meetup details changed", hrefPath: () => "/dashboard?tab=notifications" },
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -39,6 +60,11 @@ Deno.serve(async (req) => {
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (!resendKey) {
       return json({ sent: 0, skipped: "email_not_configured" });
+    }
+
+    const from = Deno.env.get("RESEND_FROM_EMAIL");
+    if (!from) {
+      return json({ sent: 0, skipped: "missing_from_address" });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -65,31 +91,32 @@ Deno.serve(async (req) => {
     }
 
     const payload = (await req.json()) as Payload;
-    if (!payload?.kind) {
-      return json({ error: "kind is required" }, 400);
+    if (!payload?.kind || !(payload.kind in TEMPLATES)) {
+      return json({ error: "A valid kind is required" }, 400);
+    }
+    if (!payload.claimId && !payload.itemId) {
+      return json({ error: "claimId or itemId is required" }, 400);
     }
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const mails = await buildMails(admin, user.id, payload);
-    if (mails.length === 0) {
+    const rows = await claimPendingEmails(admin, user.id, payload);
+    if (rows.length === 0) {
       return json({ sent: 0, skipped: "no_recipients" });
     }
 
     const origin = Deno.env.get("SITE_URL") || "https://campusfind.vercel.app";
-    const from = Deno.env.get("RESEND_FROM_EMAIL") || "CampusFind <beth.t@example.com>";
-
     let sent = 0;
-    for (const mail of mails) {
-      const { data: recipient, error: recipientError } = await admin.auth.admin.getUserById(mail.toUserId);
+    const failedIds: string[] = [];
+
+    for (const row of rows) {
+      const { data: recipient, error: recipientError } = await admin.auth.admin.getUserById(row.user_id);
       const email = recipient?.user?.email;
-      if (recipientError || !email) continue;
+      if (recipientError || !email) {
+        failedIds.push(row.id);
+        continue;
+      }
 
-      const html = renderEmail({
-        heading: mail.heading,
-        body: mail.body,
-        href: `${origin}${mail.hrefPath}`,
-      });
-
+      const template = TEMPLATES[row.kind];
       const resendRes = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -99,12 +126,22 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           from,
           to: [email],
-          subject: mail.subject,
-          html,
+          subject: `CampusFind: ${row.title}`,
+          html: renderEmail({
+            heading: template.heading,
+            body: row.message,
+            href: `${origin}${template.hrefPath(row)}`,
+          }),
         }),
       });
 
       if (resendRes.ok) sent += 1;
+      else failedIds.push(row.id);
+    }
+
+    // Let a later call retry anything that didn't go out.
+    if (failedIds.length > 0) {
+      await admin.from("notifications").update({ emailed_at: null }).in("id", failedIds);
     }
 
     return json({ sent });
@@ -121,161 +158,44 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
-async function buildMails(
+/**
+ * Finds alerts the caller's own action just created (sender_id = caller) that have not been
+ * emailed yet, and marks them emailed in the same step so concurrent calls can't double-send.
+ * Alerts are only written by database triggers on real state changes, so this can't be used
+ * to email arbitrary people or to repeat an email.
+ */
+async function claimPendingEmails(
   admin: ReturnType<typeof createClient>,
   actorId: string,
   payload: Payload,
-): Promise<OutboundMail[]> {
-  if (payload.claimId) {
-    const { data: claim, error } = await admin
-      .from("claims")
-      .select("id, item_id, user_id, message, status, meeting_details, items(title, user_id, status)")
-      .eq("id", payload.claimId)
-      .maybeSingle();
+): Promise<NotificationRow[]> {
+  const since = new Date(Date.now() - EMAIL_WINDOW_MS).toISOString();
 
-    if (error || !claim) return [];
+  let candidates = admin
+    .from("notifications")
+    .select("id")
+    .eq("sender_id", actorId)
+    .eq("kind", payload.kind)
+    .is("emailed_at", null)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(MAX_EMAILS_PER_CALL);
 
-    const item = Array.isArray(claim.items) ? claim.items[0] : claim.items;
-    if (!item) return [];
+  if (payload.claimId) candidates = candidates.eq("related_claim_id", payload.claimId);
+  if (payload.itemId) candidates = candidates.eq("related_item_id", payload.itemId);
 
-    const ownerId = item.user_id as string;
-    const claimantId = claim.user_id as string;
-    const title = String(item.title || "Item");
-    const isOwner = actorId === ownerId;
-    const isClaimant = actorId === claimantId;
-    if (!isOwner && !isClaimant) return [];
+  const { data: found, error } = await candidates;
+  if (error || !found || found.length === 0) return [];
 
-    const preview = String(claim.message || "").slice(0, 160);
+  const { data: claimed, error: claimError } = await admin
+    .from("notifications")
+    .update({ emailed_at: new Date().toISOString() })
+    .in("id", found.map((row) => row.id))
+    .is("emailed_at", null)
+    .select("id, user_id, title, message, related_item_id, kind");
 
-    switch (payload.kind) {
-      case "claim_submitted":
-        if (!isClaimant) return [];
-        return [
-          {
-            toUserId: ownerId,
-            subject: `CampusFind: new claim on "${title}"`,
-            heading: "Someone contacted you about a listing",
-            body: `A student wrote: "${preview}". Open CampusFind to accept or decline in Inbox.`,
-            hrefPath: "/dashboard?tab=incoming",
-          },
-        ];
-      case "claim_approved":
-        if (!isOwner) return [];
-        return [
-          {
-            toUserId: claimantId,
-            subject: `CampusFind: claim accepted for "${title}"`,
-            heading: "Your claim was accepted",
-            body: claim.meeting_details
-              ? `Meetup: ${claim.meeting_details}`
-              : "Meet in a public campus spot. Details are in your Claims tab.",
-            hrefPath: "/dashboard?tab=my-claims",
-          },
-        ];
-      case "claim_rejected":
-        if (!isOwner) return [];
-        return [
-          {
-            toUserId: claimantId,
-            subject: `CampusFind: claim declined for "${title}"`,
-            heading: "Your claim was declined",
-            body: `The poster declined your claim for "${title}". You can look for another listing.`,
-            hrefPath: "/dashboard?tab=my-claims",
-          },
-        ];
-      case "claim_withdrawn":
-        if (!isClaimant) return [];
-        return [
-          {
-            toUserId: ownerId,
-            subject: `CampusFind: a claim was withdrawn on "${title}"`,
-            heading: "A claim was withdrawn",
-            body: `The student withdrew their claim on "${title}".`,
-            hrefPath: "/dashboard?tab=incoming",
-          },
-        ];
-      case "meetup_updated": {
-        const toUserId = isOwner ? claimantId : ownerId;
-        return [
-          {
-            toUserId,
-            subject: `CampusFind: meetup updated for "${title}"`,
-            heading: "Meetup details changed",
-            body: claim.meeting_details
-              ? `New details: ${claim.meeting_details}`
-              : "Open CampusFind to see the updated meetup note.",
-            hrefPath: isOwner ? "/dashboard?tab=my-claims" : "/dashboard?tab=incoming",
-          },
-        ];
-      }
-      default:
-        break;
-    }
-  }
-
-  if (payload.itemId && (payload.kind === "item_returned" || payload.kind === "item_deleted" || payload.kind === "possible_match" || payload.kind === "claim_superseded")) {
-    const { data: item, error } = await admin
-      .from("items")
-      .select("id, title, user_id, status")
-      .eq("id", payload.itemId)
-      .maybeSingle();
-
-    if (error || !item) return [];
-
-    if (payload.kind === "possible_match") {
-      if (item.user_id !== actorId) return [];
-      const { data: notes } = await admin
-        .from("notifications")
-        .select("user_id")
-        .eq("related_item_id", item.id)
-        .eq("kind", "possible_match")
-        .gt("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
-
-      const recipients = Array.from(new Set((notes || []).map((row) => row.user_id).filter((id) => id && id !== actorId)));
-      return recipients.map((toUserId) => ({
-        toUserId,
-        subject: `CampusFind: possible match for "${item.title}"`,
-        heading: "A listing may match yours",
-        body: `Someone posted "${item.title}". Open it on CampusFind if it looks like your item.`,
-        hrefPath: `/items/${item.id}`,
-      }));
-    }
-
-    if (item.user_id !== actorId) return [];
-
-    const { data: claims } = await admin
-      .from("claims")
-      .select("id, user_id, status")
-      .eq("item_id", item.id);
-
-    if (payload.kind === "claim_superseded") {
-      const others = (claims || []).filter((claim) => claim.status === "rejected" && claim.user_id !== actorId);
-      return others.map((claim) => ({
-        toUserId: claim.user_id,
-        subject: `CampusFind: another claim was accepted for "${item.title}"`,
-        heading: "Another claim was accepted",
-        body: `The poster accepted a different claim for "${item.title}".`,
-        hrefPath: "/dashboard?tab=my-claims",
-      }));
-    }
-
-    const active = (claims || []).filter((claim) => ["pending", "approved"].includes(claim.status) && claim.user_id !== actorId);
-    const heading = payload.kind === "item_returned" ? "Item marked returned" : "Listing removed";
-    const body =
-      payload.kind === "item_returned"
-        ? `The poster marked "${item.title}" as returned.`
-        : `The poster removed "${item.title}" from the board.`;
-
-    return active.map((claim) => ({
-      toUserId: claim.user_id,
-      subject: `CampusFind: ${heading.toLowerCase()} — "${item.title}"`,
-      heading,
-      body,
-      hrefPath: "/dashboard?tab=my-claims",
-    }));
-  }
-
-  return [];
+  if (claimError || !claimed) return [];
+  return (claimed as NotificationRow[]).filter((row) => row.user_id !== actorId);
 }
 
 function renderEmail({ heading, body, href }: { heading: string; body: string; href: string }) {
