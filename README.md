@@ -45,7 +45,7 @@ These are enforced in Postgres, not only in the UI.
 - **Alerts.** A claim, accept, decline, withdraw, meetup change, return, or delete writes a notification **in Postgres** via a `SECURITY DEFINER` stored function. The bell updates over Supabase Realtime. Optional email via Resend if a key is configured.
 - **Possible matches.** Posting a lost item can ping owners of similar found listings (and the other way around), same category, overlapping title tokens.
 - **Photos.** Up to five images per listing (JPG, PNG, WebP, 5 MB each). Deleting a post removes the files from storage. Marking **returned** takes it off the board but keeps photos so you can reopen it.
-- **Limits.** 10 new listings per 24 hours, 15 claims per 24 hours, 20 notifications per hour — enforced by Postgres triggers, not client-side checks.
+- **Limits.** 5 new listings per hour, 15 claims per 24 hours, 5 photos per listing, 20 notifications per hour — enforced by Postgres triggers, not client-side checks. Listing timestamps are set by the server, so the limits can't be dodged with a fake `created_at`.
 
 ---
 
@@ -56,6 +56,7 @@ These are enforced in Postgres, not only in the UI.
 | UI | React 18, TypeScript, Vite 5 (SWC) | Fast local loop, typed surfaces |
 | Style | Tailwind CSS, Radix UI / shadcn | One design system, accessible primitives |
 | Motion | Framer Motion, custom CSS spring curves | Smooth, physics-based micro-interactions |
+| 3D | three.js r128 in a Web Worker (FAQ only) | Foggy, the FAQ assistant; renders off the main thread, quality adapts to the device |
 | Data | Supabase Postgres + RLS + Storage | Auth, files, and policies in one place |
 | Cache | TanStack Query v5 | Listings and inbox stay fresh without extra servers |
 | Realtime | Supabase Realtime (postgres_changes) | Live notification bell with zero polling |
@@ -140,6 +141,8 @@ src/
   components/
     common/                ErrorBoundary, AuthPromptModal, GlowAction, Skeletons,
                            PageTransition, NetworkStatusNotifier
+    foggy/                 Foggy (3D FAQ assistant; three.js scene runs in a Web Worker)
+    home/                  HomeHero (homepage hero: headline, search, lost/found actions)
     layout/                Navbar, MobileDock, Footer, LegalLayout
     ui/                    ~50 shadcn/Radix UI primitives
   constants/               CATEGORIES, LOCATIONS, STATUS_STYLES, CATEGORY_STYLES
