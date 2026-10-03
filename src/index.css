@@ -730,6 +730,88 @@
   }
 }
 
+/* ─── Homepage hero motion ───
+   Only transform and opacity are animated, so everything runs on the compositor
+   and stays smooth even while React, images and data are still loading. */
+
+.hero-photo {
+  animation: hero-photo-in 0.9s ease-out backwards;
+}
+
+.hero-line {
+  animation: hero-line-in 1s cubic-bezier(0.22, 1, 0.36, 1) var(--hero-delay, 0ms) backwards;
+}
+
+.hero-rise {
+  animation: hero-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) var(--hero-delay, 0ms) backwards;
+}
+
+@keyframes hero-photo-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes hero-line-in {
+  from {
+    transform: translate3d(0, 108%, 0);
+  }
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+}
+
+.hero-hint {
+  animation: hero-hint-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.hero-float {
+  animation: hero-float 7s ease-in-out var(--float-delay, 0s) infinite;
+}
+
+.hero-float:hover,
+.hero-float:focus-visible,
+.hero-preview[data-offscreen="true"] .hero-float {
+  animation-play-state: paused;
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -7px, 0);
+  }
+}
+
+@keyframes hero-hint-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+}
+
+/* Photo drifts slower than the page. Scroll-driven, so the browser runs it off the
+   main thread; browsers without support simply skip it. */
+@supports (animation-timeline: scroll()) {
+  .hero-parallax {
+    animation: hero-parallax linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 100vh;
+  }
+
+  @keyframes hero-parallax {
+    to {
+      transform: translate3d(0, 18vh, 0);
+    }
+  }
+}
+
 @keyframes page-in {
   from {
     opacity: 0;
@@ -778,6 +860,16 @@
   .dock-indicator {
     transition: none !important;
   }
+
+  .hero-photo,
+  .hero-hint,
+  .hero-float,
+  .hero-line,
+  .hero-rise,
+  .hero-parallax {
+    animation: none !important;
+  }
+
 
   .hero-glow::before,
   .hero-glow::after {
