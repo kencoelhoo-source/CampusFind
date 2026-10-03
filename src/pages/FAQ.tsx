@@ -1,16 +1,51 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ArrowRight, Square } from "lucide-react";
 import { FAQS } from "@/data/faqs";
 import { getSimulatedAIResponse } from "@/data/ai-responses";
 import { cn } from "@/lib/utils";
+import type { FoggyExpression } from "@/components/foggy/foggy-scene";
+
+// three.js only loads on this page, after the FAQ text has rendered.
+const Foggy = lazy(() => import("@/components/foggy/Foggy"));
 
 export default function FAQ() {
   const [items, setItems] = useState<{ q: string; a: string; isGenerated?: boolean }[]>([...FAQS]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [openItem, setOpenItem] = useState<string | undefined>(undefined);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
+  const celebrateTimer = useRef<number>();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [glanceTarget, setGlanceTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => () => window.clearTimeout(celebrateTimer.current), []);
+
+  // When a question opens (including Foggy's own new answer), he looks at it for a moment.
+  useEffect(() => {
+    if (!openItem) return;
+    const opened = document.querySelector<HTMLElement>(`[data-faq-item="${openItem}"]`);
+    if (!opened) return;
+    setGlanceTarget(opened);
+    const timer = window.setTimeout(() => setGlanceTarget(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [openItem]);
+
+  // Foggy reacts to what you're doing: curious while you type, typing while the answer
+  // "loads", happy when it lands, friendly the rest of the time.
+  const foggyExpression: FoggyExpression = isLoading
+    ? "typing"
+    : celebrating
+      ? "happy"
+      : inputFocused
+        ? "curious"
+        : "hello";
+
+  // What he looks at: his laptop while "typing", a question that just opened, otherwise
+  // the question box while you're in it. With nothing set he follows taps/cursor/scroll.
+  const foggyLookAt = isLoading ? null : (glanceTarget ?? (inputFocused ? inputRef.current : null));
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -33,20 +68,29 @@ export default function FAQ() {
       setInputValue("");
       setIsLoading(false);
       setOpenItem(`item-${newIndex}`);
+      setCelebrating(true);
+      window.clearTimeout(celebrateTimer.current);
+      celebrateTimer.current = window.setTimeout(() => setCelebrating(false), 3500);
     }, 1800);
   };
 
+  // md:pt-12 puts the left column's resting spot exactly where it sticks (top-28), so it
+  // never jumps or leaves a big gap under the nav bar while you scroll.
   return (
-    <div className="container mx-auto px-6 py-20 md:py-32 max-w-[1000px]">
+    <div className="container mx-auto px-6 py-20 md:pb-24 md:pt-12 max-w-[1000px]">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-12 md:gap-24">
         {/* Left Column */}
-        <div className="md:col-span-4 flex flex-col pt-2">
+        <div className="md:col-span-4 flex flex-col pt-2 md:sticky md:top-28 md:self-start">
           <h1 className="font-display text-4xl font-semibold tracking-tight md:text-[42px] text-foreground">
             Questions
           </h1>
           <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground max-w-[280px]">
-            The short ones are here. For anything else, ask Foggy below.
+            The short ones are here. For anything else, ask Foggy at the end of the list.
           </p>
+          {/* Desktop: sits in this sticky column. Phones: floats above the bottom dock. */}
+          <Suspense fallback={<div className="hidden md:mt-8 md:block md:h-[324px]" />}>
+            <Foggy expression={foggyExpression} interactive={!inputFocused} lookAt={foggyLookAt} className="md:mt-8" />
+          </Suspense>
         </div>
 
         {/* Right Column */}
@@ -59,7 +103,7 @@ export default function FAQ() {
             onValueChange={setOpenItem}
           >
             {items.map((item, index) => (
-              <AccordionItem key={index} value={`item-${index}`} className="border-border/40">
+              <AccordionItem key={index} value={`item-${index}`} data-faq-item={`item-${index}`} className="border-border/40">
                 <AccordionTrigger className="text-[15px] sm:text-[16px] py-6 hover:no-underline font-normal text-foreground/90">
                   {item.q}
                 </AccordionTrigger>
@@ -86,6 +130,8 @@ export default function FAQ() {
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
                 placeholder="Ask anything else"
                 disabled={isLoading}
                 className="w-full bg-transparent border-none outline-none py-6 text-[15px] sm:text-[16px] text-foreground placeholder:text-muted-foreground/80 disabled:opacity-50 disabled:cursor-not-allowed"
