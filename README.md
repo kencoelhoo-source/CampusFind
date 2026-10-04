@@ -247,3 +247,9 @@ Built for **St. Francis Institute of Technology**, Mount Poinsur, Borivali (West
 CampusFind is a student-built board. It does not replace the college lost-and-found desk or campus security for high-value or sensitive items.
 
 Designed and maintained by Ken Coelho.
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE). Copyright (c) 2026 Ken Coelho.
