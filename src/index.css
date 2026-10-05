@@ -886,3 +886,61 @@ html.theme-switching .mobile-dock,
 html.theme-switching .mobile-dock * {
   transition: none !important;
 }
+
+/* ─── Foggy roaming on phones (positions are written by foggy-roam.ts) ───
+   The root is fixed to the screen, or absolute in the page while he stands on a ledge so
+   scrolling carries him natively. `overflow-x: clip` stops a canvas poking past the right
+   edge from making the page scroll sideways. Only the oval over his body takes touches. */
+.foggy-roam {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 0;
+  overflow-x: clip;
+  overflow-y: visible;
+  pointer-events: none;
+  z-index: 46;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.foggy-roam.is-ready {
+  opacity: 1;
+}
+
+.foggy-roam-figure {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 168px;
+  height: 168px;
+  will-change: transform;
+}
+
+.foggy-roam-shadow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(46 40 30 / 0.3), rgb(46 40 30 / 0));
+  will-change: transform, opacity;
+}
+
+.dark .foggy-roam-shadow {
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.62), rgb(0 0 0 / 0));
+}
+
+.foggy-roam-hit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  will-change: transform;
+}

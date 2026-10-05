@@ -56,7 +56,7 @@ These are enforced in Postgres, not only in the UI.
 | UI | React 18, TypeScript, Vite 5 (SWC) | Fast local loop, typed surfaces |
 | Style | Tailwind CSS, Radix UI / shadcn | One design system, accessible primitives |
 | Motion | Framer Motion, custom CSS spring curves | Smooth, physics-based micro-interactions |
-| 3D | three.js r128 in a Web Worker (FAQ only) | Foggy, the FAQ assistant; renders off the main thread, quality adapts to the device |
+| 3D | three.js r128 in a Web Worker (FAQ only) | Foggy, the FAQ assistant; renders off the main thread, quality adapts to the device. On phones he roams the screen (walks the dock, climbs the FAQ rows, can be picked up and thrown) |
 | Data | Supabase Postgres + RLS + Storage | Auth, files, and policies in one place |
 | Cache | TanStack Query v5 | Listings and inbox stay fresh without extra servers |
 | Realtime | Supabase Realtime (postgres_changes) | Live notification bell with zero polling |
@@ -141,7 +141,8 @@ src/
   components/
     common/                ErrorBoundary, AuthPromptModal, GlowAction, Skeletons,
                            PageTransition, NetworkStatusNotifier
-    foggy/                 Foggy (3D FAQ assistant; three.js scene runs in a Web Worker)
+    foggy/                 Foggy (3D FAQ assistant; three.js scene runs in a Web Worker;
+                           foggy-roam.ts + foggy-world.ts move him around on phones)
     home/                  HomeHero (homepage hero: headline, search, lost/found actions)
     layout/                Navbar, MobileDock, Footer, LegalLayout
     ui/                    ~50 shadcn/Radix UI primitives
@@ -155,7 +156,8 @@ src/
       search-engine.ts     In-memory ranking: synonyms, stemming, Levenshtein fuzzy
       item-filters.ts      URLSearchParams serialization helpers
       item-validation.ts   File type/size checks, claim text validation
-  hooks/                   use-notification-realtime, use-mobile, use-sfit-email-lock
+  hooks/                   use-notification-realtime, use-mobile, use-media-query,
+                           use-sfit-email-lock
   integrations/supabase/   Supabase JS client + generated TypeScript types
   lib/                     email.ts, google-gis.ts, utils.ts (cn()), notification-routing.ts
   pages/                   Index, Items, ItemDetail, PostItem, Dashboard,

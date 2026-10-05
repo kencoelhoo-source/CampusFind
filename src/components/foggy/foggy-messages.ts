@@ -2,7 +2,7 @@
  * Messages between the page and Foggy's scene. Types only from foggy-scene, so importing
  * this never pulls three.js onto the page.
  */
-import type { FoggyController, FoggyExpression, FoggyQuality } from "./foggy-scene";
+import type { FoggyController, FoggyCue, FoggyExpression, FoggyMetrics, FoggyMode, FoggyMotion, FoggyQuality } from "./foggy-scene";
 
 /** Page → scene. */
 export type FoggyCommand =
@@ -14,13 +14,16 @@ export type FoggyCommand =
   | { type: "pointerDown"; id: number; x: number; y: number }
   | { type: "pointerMove"; id: number; x: number; y: number }
   | { type: "pointerUp"; id: number; ndcX: number; ndcY: number }
-  | { type: "pointerCancel"; id: number };
+  | { type: "pointerCancel"; id: number }
+  | ({ type: "motion" } & FoggyMotion)
+  | { type: "cue"; name: FoggyCue; strength?: number };
 
 export interface FoggyInit {
   width: number;
   height: number;
   devicePixelRatio: number;
   reduceMotion: boolean;
+  mode: FoggyMode;
 }
 
 /** Page → worker. */
@@ -32,6 +35,7 @@ export type FoggyEvent =
   | { type: "firstFrame" }
   | { type: "mood"; label: string }
   | { type: "boop" }
+  | ({ type: "metrics" } & FoggyMetrics)
   | { type: "unsupported" };
 
 export function applyCommand(controller: FoggyController, command: FoggyCommand) {
@@ -54,23 +58,29 @@ export function applyCommand(controller: FoggyController, command: FoggyCommand)
       return controller.pointerUp(command.id, command.ndcX, command.ndcY);
     case "pointerCancel":
       return controller.pointerCancel(command.id);
+    case "motion":
+      return controller.setMotion({ pose: command.pose, vx: command.vx, vy: command.vy, face: command.face, spin: command.spin });
+    case "cue":
+      return controller.cue(command.name, command.strength);
   }
 }
 
+type Remembered = "resize" | "theme" | "expression" | "active" | "motion";
+
 /**
- * Holds the latest size/theme/expression/active state sent while the scene is still being built,
- * then replays it once (in that order). Pointer input from before then is simply dropped.
+ * Holds the latest size/theme/expression/active/motion state sent while the scene is still
+ * being built, then replays it once (in that order). Pointer input and cues from before then
+ * are simply dropped.
  */
 export function createCommandBuffer() {
-  const latest: Partial<Record<"resize" | "theme" | "expression" | "active", FoggyCommand>> = {};
+  const latest: Partial<Record<Remembered, FoggyCommand>> = {};
+  const order: Remembered[] = ["resize", "theme", "expression", "active", "motion"];
   return {
     remember(command: FoggyCommand) {
-      if (command.type === "resize" || command.type === "theme" || command.type === "expression" || command.type === "active") {
-        latest[command.type] = command;
-      }
+      if ((order as string[]).includes(command.type)) latest[command.type as Remembered] = command;
     },
     flush(controller: FoggyController) {
-      (["resize", "theme", "expression", "active"] as const).forEach((key) => {
+      order.forEach((key) => {
         const command = latest[key];
         if (command) applyCommand(controller, command);
       });

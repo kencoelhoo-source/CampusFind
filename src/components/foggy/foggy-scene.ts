@@ -5,10 +5,42 @@
  * (no DOM, no window), so the same code runs inside a Web Worker on an OffscreenCanvas —
  * which is how the FAQ uses it, keeping every bit of 3D work off the page's main thread.
  * Size, pointer input and expression arrive as method calls; `dispose()` frees the GPU.
+ *
+ * Two framings: "stage" (desktop: a fixed spot on the FAQ page) and "roam" (phones: the page
+ * moves the canvas around the screen and sends `setMotion` every frame; the scene turns that
+ * into walking, jumping, dangling, sitting… poses, and reports where his feet are in the canvas).
  */
 import * as THREE from "three";
 
 export type FoggyExpression = "hello" | "happy" | "thinking" | "excited" | "typing" | "curious" | "cheerful";
+
+export type FoggyMode = "stage" | "roam";
+
+/** What his body is doing, as decided by the page in roam mode. */
+export type FoggyPose = "stand" | "walk" | "crouch" | "air" | "held" | "sit" | "edgeSit" | "sleep" | "peek" | "dizzy";
+
+/** One-off reactions. `strength` is 0..1 (for "brace" it's the direction, ±1). */
+export type FoggyCue = "land" | "bonk" | "startle" | "yawn" | "wave" | "shake" | "twirl" | "brace" | "grab" | "boop";
+
+export interface FoggyMotion {
+  pose: FoggyPose;
+  /** Screen px/s, + = right. While held: how fast the hand moves. */
+  vx: number;
+  /** Screen px/s, + = down. */
+  vy: number;
+  /** Which way he turns: -1 left, 1 right, 0 toward you. */
+  face: -1 | 0 | 1;
+  /** Tumble while thrown, rad/s. */
+  spin: number;
+}
+
+/** Roam framing, in canvas CSS px: where his feet and sprout tip are, and the world scale. */
+export interface FoggyMetrics {
+  anchorX: number;
+  anchorY: number;
+  holdY: number;
+  pxPerUnit: number;
+}
 
 export interface FoggyController {
   setExpression(name: FoggyExpression): void;
@@ -29,6 +61,9 @@ export interface FoggyController {
   /** ndcX/ndcY: where the pointer was released, in canvas space (-1..1), to detect a tap on Foggy. */
   pointerUp(id: number, ndcX: number, ndcY: number): void;
   pointerCancel(id: number): void;
+  /** Roam mode: the body state the page wants this frame. */
+  setMotion(motion: FoggyMotion): void;
+  cue(name: FoggyCue, strength?: number): void;
   dispose(): void;
 }
 
@@ -40,8 +75,12 @@ export interface FoggyOptions {
   height: number;
   devicePixelRatio: number;
   reduceMotion: boolean;
+  /** "stage" (default) frames him in a fixed spot; "roam" is the phone companion. */
+  mode?: FoggyMode;
   /** Checked between setup steps; when true, setup stops and frees everything. */
   isCancelled?: () => boolean;
+  /** Roam mode: sent whenever the canvas size changes. */
+  onMetrics?: (metrics: FoggyMetrics) => void;
   /** Which quality level was picked for this device. */
   onQuality?: (quality: FoggyQuality) => void;
   onFirstFrame?: () => void;
@@ -112,9 +151,43 @@ interface ExpressionDef {
   hop?: boolean;
   typing?: boolean;
 }
-type EyeShape = "open" | "arc" | "chevR" | "chevL";
+type EyeShape = "open" | "arc" | "chevR" | "chevL" | "closed" | "spiral";
 type MouthShape = "open" | "small" | "flat" | "o";
 type PropName = "sun" | "question" | "sparkles" | "laptop" | "magnifier";
+
+/** The face part of an expression; roam poses swap in their own (asleep, dizzy, whoa…). */
+type FaceDef = Pick<ExpressionDef, "eyes" | "size" | "look" | "mouth" | "mouthSize"> & { blush?: number };
+
+const FACES: Record<"surprised" | "whee" | "dangle" | "sleepy" | "dizzy" | "ouch" | "yawn" | "peek", FaceDef> = {
+  surprised: { eyes: ["open", "open"], size: [1.28, 1.28], mouth: "o", mouthSize: 1.25 },
+  whee: { eyes: ["arc", "arc"], mouth: "open", mouthSize: 1.1, blush: 1 },
+  dangle: { eyes: ["open", "open"], size: [1.08, 1.08], look: [0, -0.04], mouth: "small" },
+  sleepy: { eyes: ["closed", "closed"], mouth: "small", mouthSize: 0.75, blush: 0.6 },
+  dizzy: { eyes: ["spiral", "spiral"], mouth: "flat" },
+  ouch: { eyes: ["chevR", "chevL"], mouth: "flat", mouthSize: 1.2 },
+  yawn: { eyes: ["closed", "closed"], mouth: "o", mouthSize: 1.75 },
+  peek: { eyes: ["open", "open"], size: [1.12, 1.12], look: [0, -0.1], mouth: "small" },
+};
+
+/* ---------- roam framing ---------- */
+/** Screen px per world unit on phones: Foggy is about 62×72 px. */
+const ROAM_PPU = 30;
+/** His feet sit this far down the canvas: room above for hops and props, below for dangling feet. */
+const ROAM_ANCHOR = 0.7;
+/** Tip of the sprout, where a finger picks him up (world units above his feet). */
+const HOLD_Y = 2.42;
+/** Roughly his centre of mass; tumbles turn around it. */
+const CENTER_Y = 1.15;
+/** How far he turns toward where he walks: three-quarter view, so his face stays visible. */
+const WALK_YAW = 1.0;
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const clamp01 = (v: number) => clamp(v, 0, 1);
+const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
+const smooth = (k: number) => {
+  const c = clamp01(k);
+  return c * c * (3 - 2 * c);
+};
 
 const EXPR: Record<FoggyExpression, ExpressionDef> = {
   hello: { label: "friendly", eyes: ["open", "open"], size: [1, 1], mouth: "open", blush: 0.85, A: [-0.25, -0.45], B: [0, 2.5], props: [], marks: 1, wiggle: true },
@@ -145,6 +218,7 @@ class Spring {
  */
 export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOptions): Promise<FoggyController | null> {
   const { reduceMotion } = options;
+  const roam = options.mode === "roam";
   const isCancelled = options.isCancelled ?? (() => false);
 
   // Throws if WebGL is unavailable — the caller reports that and Foggy stays hidden.
@@ -184,12 +258,24 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
 
   let envTexture: THREE.Texture | null = null;
+  /**
+   * three r128's dispose() ends by cancelling its animation frame on `window`, which doesn't
+   * exist in a worker, so it throws after everything is already freed. Catch that so the GPU
+   * context is still released straight away.
+   */
+  const releaseRenderer = () => {
+    try {
+      renderer.dispose();
+    } catch {
+      // see above
+    }
+    renderer.forceContextLoss();
+  };
   /** Frees whatever has been built so far when setup is cancelled part-way. */
   const bail = () => {
     disposeTree(scene);
     envTexture?.dispose();
-    renderer.dispose();
-    renderer.forceContextLoss();
+    releaseRenderer();
     return null;
   };
 
@@ -222,7 +308,9 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
   key.position.set(-3.2, 6, 5);
   scene.add(key);
 
-  if (settings.shadows) {
+  // Roaming, the page draws his shadow on whatever he stands on; an in-canvas floor would
+  // follow him into the air.
+  if (settings.shadows && !roam) {
     // Nearly overhead, so the soft shadow lands under the feet (the original side light
     // threw it off to the right, which read as wrong).
     const shadowLight = new THREE.DirectionalLight(col(0xffffff), 0.3);
@@ -271,6 +359,7 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
   const blob = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.5), blobMat);
   blob.rotation.x = -Math.PI / 2;
   blob.position.set(0, 0.003, 0.12);
+  blob.visible = !roam;
   scene.add(blob);
 
   /* ---------- materials ---------- */
@@ -406,9 +495,27 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
 
   /* ---------- character rig ---------- */
   const root = new THREE.Group();
-  scene.add(root); // jump + yaw
+  scene.add(root); // jump + pop-in scale
+  // Roam-only layers (identity on the desktop stage): lean around the feet, dangle from the
+  // sprout tip, tumble around the middle. Each pivot is a group moved to it and back.
+  const leanG = new THREE.Group();
+  root.add(leanG);
+  const hangG = new THREE.Group();
+  hangG.position.y = HOLD_Y;
+  leanG.add(hangG);
+  const hangBack = new THREE.Group();
+  hangBack.position.y = -HOLD_Y;
+  hangG.add(hangBack);
+  const spinG = new THREE.Group();
+  spinG.position.y = CENTER_Y;
+  hangBack.add(spinG);
+  const spinBack = new THREE.Group();
+  spinBack.position.y = -CENTER_Y;
+  spinG.add(spinBack);
+  const yawG = new THREE.Group();
+  spinBack.add(yawG); // turning
   const squash = new THREE.Group();
-  root.add(squash); // squash & stretch from the feet
+  yawG.add(squash); // squash & stretch from the feet
   const body = new THREE.Group();
   body.position.copy(BODY_C);
   squash.add(body); // breathing, tilt
@@ -418,12 +525,14 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
   if (isCancelled()) return bail();
 
   const footGeo = new THREE.SphereGeometry(0.2, 40, 28);
-  [-0.37, 0.37].forEach((x) => {
+  const FOOT_Y = 0.14, FOOT_Z = 0.24;
+  const feet = [-0.37, 0.37].map((x) => {
     const f = new THREE.Mesh(footGeo, bodyMat);
     f.scale.set(1.15, 0.72, 1.3);
-    f.position.set(x, 0.14, 0.24);
+    f.position.set(x, FOOT_Y, FOOT_Z);
     f.castShadow = f.receiveShadow = true;
     squash.add(f);
+    return { mesh: f, x };
   });
 
   const armGeo = new THREE.SphereGeometry(0.16, 40, 30);
@@ -526,6 +635,18 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
       arc: stroke([[-0.075, -0.03], [-0.045, 0.025], [0, 0.048], [0.045, 0.025], [0.075, -0.03]], 0.019, eyeMat),
       chevR: stroke([[-0.05, 0.06], [-0.002, 0.03], [0.05, 0], [-0.002, -0.03], [-0.05, -0.06]], 0.019, eyeMat),
       chevL: stroke([[0.05, 0.06], [0.002, 0.03], [-0.05, 0], [0.002, -0.03], [0.05, -0.06]], 0.019, eyeMat),
+      // Asleep: a soft downward curve.
+      closed: stroke([[-0.07, 0.016], [-0.036, -0.01], [0, -0.019], [0.036, -0.01], [0.07, 0.016]], 0.017, eyeMat),
+      // Dizzy: a little spiral that spins.
+      spiral: stroke(
+        Array.from({ length: 22 }, (_, i): [number, number] => {
+          const a = (i / 21) * Math.PI * 3.4;
+          const r = 0.012 + (i / 21) * 0.062;
+          return [Math.cos(a) * r, Math.sin(a) * r];
+        }),
+        0.012,
+        eyeMat,
+      ),
     };
     Object.values(variants).forEach((v) => holder.add(v));
     const w = {} as Record<EyeShape, Spring>;
@@ -693,6 +814,60 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
     addProp("magnifier", g, p);
   }
 
+  /* ---------- roam extras: sleepy Z's and dust puffs (screen-aligned, so on the scene) ---------- */
+  const zMats: THREE.MeshPhysicalMaterial[] = [];
+  const zzz = new THREE.Group();
+  const puffs: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number; max: number; vx: number; vy: number; size: number }[] = [];
+  let puffOpacity = 0.55;
+  if (roam) {
+    const s = new THREE.Shape();
+    const w = 0.075, h = 0.085, k = 0.03;
+    s.moveTo(-w, h);
+    s.lineTo(w, h);
+    s.lineTo(w, h - k);
+    s.lineTo(-w + k * 1.8, -h + k);
+    s.lineTo(w, -h + k);
+    s.lineTo(w, -h);
+    s.lineTo(-w, -h);
+    s.lineTo(-w, -h + k);
+    s.lineTo(w - k * 1.8, h - k);
+    s.lineTo(-w, h - k);
+    s.lineTo(-w, h);
+    const zg = new THREE.ExtrudeGeometry(s, { depth: 0.02, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.008, bevelSegments: 2 });
+    zg.center();
+    for (let i = 0; i < 3; i++) {
+      const mat = new THREE.MeshPhysicalMaterial({ color: col(0x7d8fb3), roughness: 0.35, clearcoat: 0.6, transparent: true, opacity: 0 });
+      zMats.push(mat);
+      zzz.add(new THREE.Mesh(zg, mat));
+    }
+    zzz.visible = false;
+    scene.add(zzz);
+
+    const puffGeo = new THREE.SphereGeometry(0.1, 14, 10);
+    for (let i = 0; i < 12; i++) {
+      const mat = new THREE.MeshBasicMaterial({ color: 0xbdb5a6, transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+      const mesh = new THREE.Mesh(puffGeo, mat);
+      mesh.visible = false;
+      scene.add(mesh);
+      puffs.push({ mesh, mat, life: 0, max: 1, vx: 0, vy: 0, size: 1 });
+    }
+  }
+  /** A few dust puffs at his feet (landings, skids, running steps). */
+  function puff(count: number, power: number, atX = 0) {
+    if (reduceMotion) return;
+    for (let n = 0; n < count; n++) {
+      const p = puffs.find((candidate) => candidate.life <= 0);
+      if (!p) return;
+      const side = n % 2 === 0 ? 1 : -1;
+      p.mesh.position.set(atX + side * (0.18 + Math.random() * 0.22), 0.06, 0.2 + Math.random() * 0.2);
+      p.vx = side * (0.7 + Math.random() * 1.3) * power;
+      p.vy = 0.25 + Math.random() * 0.45 * power;
+      p.max = p.life = 0.38 + Math.random() * 0.22;
+      p.size = 0.6 + Math.random() * 0.6;
+      p.mesh.visible = true;
+    }
+  }
+
   /* ---------- expressions ---------- */
   const arm = { Ax: spr(0, 110, 15), Az: spr(-0.45, 110, 15), Bx: spr(0, 110, 15), Bz: spr(2.5, 110, 15) };
   const tilt = spr(0, 60, 11), pitchS = spr(0, 60, 11), lookU = spr(0, 90, 14), lookV = spr(0, 90, 14), markW = spr(1, 120, 16);
@@ -717,6 +892,39 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
   const lookYaw = spr(0, 40, 10), lookPitch = spr(0, 40, 10);
   const BASE_YAW = 0.22;
 
+  /* ---------- roam state (phones; it all rests at zero on the desktop stage) ---------- */
+  let motion: FoggyMotion = { pose: "stand", vx: 0, vy: 0, face: 0, spin: 0 };
+  let prevPose: FoggyPose = "stand";
+  // How much of each body pose is showing (springs, so poses blend instead of popping).
+  const wWalk = spr(0, 150, 24), wAir = spr(0, 170, 26), wHeld = spr(0, 150, 24);
+  const wSit = spr(0, 60, 14), wEdge = spr(0, 60, 14), wSleep = spr(0, 30, 11);
+  const wPeek = spr(0, 90, 17), wCrouch = spr(0, 380, 36), wDizzy = spr(0, 80, 16);
+  const wYawn = spr(0, 60, 14), wBrace = spr(0, 120, 18);
+  const faceYaw = spr(0, 70, 14); // turning toward where he's headed
+  const glanceS = spr(0, 80, 14); // a look back at you while walking
+  const leanS = spr(0, 85, 14); // leaning into speed changes, pivoting at the feet
+  const sproutLag = spr(0, 55, 6); // the sprout trails behind when he sets off or stops
+  const bonkS = spr(0, 300, 13); // flattened against a wall
+  const tumbleS = spr(0, 55, 11); // spinning when thrown
+  let gait = 0, gaitDuty = 0.6, gaitStride = 0, gaitRun = 0;
+  let speedW = 0, lastVxW = 0, accelW = 0, dirW = 1, fallT = 0, heldT = 0, lastSpin = 0;
+  let pend = 0, pendV = 0, handAx = 0, lastHandVx = 0;
+  let breathPhase = 0, shuffleT = 0, zPhase = 0, skidCool = 0;
+  let walkGlanceT = 3, walkGlanceHold = 0;
+  let startleT = 0, shakeT = 0, ouchT = 0, yawnT = 0, braceT = 0;
+
+  function setFace(f: FaceDef, blushLevel: number) {
+    eyes.forEach((eye, i) => {
+      (Object.keys(eye.w) as EyeShape[]).forEach((k) => (eye.w[k].t = f.eyes[i] === k ? 1 : 0));
+      eye.size.t = f.size ? f.size[i] : 1;
+    });
+    (Object.keys(mouthW) as MouthShape[]).forEach((k) => (mouthW[k].t = f.mouth === k ? 1 : 0));
+    mouthSize.t = f.mouthSize || 1;
+    blush.t = blushLevel;
+    lookU.t = f.look ? f.look[0] : 0;
+    lookV.t = f.look ? f.look[1] : 0;
+  }
+
   function applyExpression(name: FoggyExpression, temporary: boolean) {
     const e = EXPR[name];
     cur = e;
@@ -725,13 +933,7 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
       revertTimer = 0;
       revertTo = null;
     }
-    eyes.forEach((eye, i) => {
-      (Object.keys(eye.w) as EyeShape[]).forEach((k) => (eye.w[k].t = e.eyes[i] === k ? 1 : 0));
-      eye.size.t = e.size ? e.size[i] : 1;
-    });
-    (Object.keys(mouthW) as MouthShape[]).forEach((k) => (mouthW[k].t = e.mouth === k ? 1 : 0));
-    mouthSize.t = e.mouthSize || 1;
-    blush.t = e.blush;
+    setFace(e, e.blush);
     arm.Ax.t = e.A[0];
     arm.Az.t = e.A[1];
     arm.Bx.t = e.B[0];
@@ -739,8 +941,6 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
     (Object.keys(props) as PropName[]).forEach((k) => (props[k].w.t = e.props.includes(k) ? 1 : 0));
     tilt.t = e.tilt || 0;
     pitchS.t = e.pitch || 0;
-    lookU.t = e.look ? e.look[0] : 0;
-    lookV.t = e.look ? e.look[1] : 0;
     markW.t = e.marks || 0;
     options.onMoodChange?.(e.label);
   }
@@ -781,11 +981,349 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
     options.onBoop?.();
   }
 
+  /* ---------- roam: poses from the page's motion ---------- */
+
+  /** A roam pose that takes over the face (asleep, dizzy, whoa…), if any. */
+  function roamFace(): FaceDef | null {
+    const pose = motion.pose;
+    if (pose === "sleep") return FACES.sleepy;
+    if (yawnT > 0) return FACES.yawn;
+    if (pose === "dizzy") return FACES.dizzy;
+    if (ouchT > 0) return FACES.ouch;
+    if (startleT > 0) return FACES.surprised;
+    if (pose === "held") return heldT < 0.6 ? FACES.surprised : Math.abs(pendV) > 1.3 ? FACES.whee : FACES.dangle;
+    if (pose === "air" && fallT > 0.3) return FACES.surprised;
+    if (pose === "peek") return FACES.peek;
+    return null;
+  }
+
+  /** Arm targets: the expression's, blended toward whichever body poses are showing. */
+  function roamArms() {
+    // The desktop "hello" keeps one arm up mid-wave. Walking around all day that reads as
+    // stuck, so on phones he rests both arms and waves for real now and then.
+    const relaxed = cur === EXPR.hello || cur === EXPR.cheerful;
+    let ax = relaxed ? 0.05 : cur.A[0], az = relaxed ? -0.36 : cur.A[1];
+    let bx = relaxed ? 0.05 : cur.B[0], bz = relaxed ? 0.36 : cur.B[1];
+    const toward = (w: number, tax: number, taz: number, tbx: number, tbz: number) => {
+      const k = clamp01(w);
+      ax = lerp(ax, tax, k);
+      az = lerp(az, taz, k);
+      bx = lerp(bx, tbx, k);
+      bz = lerp(bz, tbz, k);
+    };
+    toward(wWalk.x, 0.05, -0.3, 0.05, 0.3);
+    if (!cur.typing) {
+      toward(wSit.x, -0.5, -0.22, -0.5, 0.22); // hands in his lap
+      toward(wEdge.x, 0.15, -0.62, 0.15, 0.62); // hands on the ledge beside him
+    }
+    toward(wPeek.x, 0.7, -1.05, 0.7, 1.05); // arms back for balance
+    toward(wCrouch.x, 0.95, -0.4, 0.95, 0.4); // swung back, ready to spring
+    toward(wAir.x, -0.15, -2.1, -0.15, 2.1);
+    toward(wHeld.x, 0, -2.75, 0, 2.75); // reaching up to your finger
+    toward(wDizzy.x, 0, -1.1, 0, 1.1);
+    toward(wBrace.x, 0.2, -1.3, 0.2, 1.3);
+    toward(wYawn.x, -0.25, -2.65, -0.25, 2.65); // big stretch
+    arm.Ax.t = ax;
+    arm.Az.t = az;
+    arm.Bx.t = bx;
+    arm.Bz.t = bz;
+  }
+
+  /** Before the springs step: pose weights, gait timing, swing and timers. */
+  function stepRoam(dt: number) {
+    const pose = motion.pose;
+    if (pose !== prevPose) {
+      if (prevPose === "air") {
+        // Landed: unwind any tumble to the nearest upright, like a cat.
+        tumbleS.x = Math.atan2(Math.sin(tumbleS.x), Math.cos(tumbleS.x));
+        tumbleS.v = lastSpin * 0.12;
+        tumbleS.t = 0;
+      }
+      if (pose === "held") heldT = 0;
+      if (pose === "air") fallT = 0;
+      prevPose = pose;
+    }
+    const tick = (v: number) => Math.max(0, v - dt);
+    startleT = tick(startleT);
+    shakeT = tick(shakeT);
+    ouchT = tick(ouchT);
+    yawnT = tick(yawnT);
+    braceT = tick(braceT);
+    skidCool = tick(skidCool);
+    shuffleT += dt;
+    if (pose === "held") heldT += dt;
+    if (pose === "air" && motion.vy > 0) fallT += dt;
+
+    wWalk.t = pose === "walk" ? 1 : 0;
+    wAir.t = pose === "air" ? 1 : 0;
+    wHeld.t = pose === "held" ? 1 : 0;
+    wSit.t = pose === "sit" || pose === "sleep" ? 1 : 0;
+    wEdge.t = pose === "edgeSit" ? 1 : 0;
+    wSleep.t = pose === "sleep" ? 1 : 0;
+    wPeek.t = pose === "peek" ? 1 : 0;
+    wCrouch.t = pose === "crouch" ? 1 : 0;
+    wDizzy.t = pose === "dizzy" ? 1 : 0;
+    wYawn.t = yawnT > 0 ? 1 : 0;
+    wBrace.t = braceT > 0 ? 1 : 0;
+
+    // Speed in world units, smoothed; acceleration drives the lean and the sprout's lag.
+    const vxW = motion.vx / ROAM_PPU;
+    if (Math.abs(vxW) > 0.05) dirW = Math.sign(vxW);
+    const walking = pose === "walk" || pose === "crouch";
+    speedW += ((walking ? Math.abs(vxW) : 0) - speedW) * Math.min(1, dt * 12);
+    const accel = (vxW - lastVxW) / Math.max(dt, 1e-3);
+    lastVxW = vxW;
+    accelW += (clamp(accel, -40, 40) - accelW) * Math.min(1, dt * 8);
+
+    faceYaw.t = motion.face * WALK_YAW;
+    if (pose === "walk" && !reduceMotion) {
+      walkGlanceT -= dt;
+      if (walkGlanceT <= 0) {
+        walkGlanceHold = 0.7;
+        walkGlanceT = 2.8 + Math.random() * 3.4;
+      }
+    }
+    if (walkGlanceHold > 0) walkGlanceHold -= dt;
+    glanceS.t = walkGlanceHold > 0 && pose === "walk" ? -motion.face * 0.55 : 0;
+
+    // Walk cycle. Each foot spends `duty` of the cycle planted and moves back exactly as fast
+    // as he moves on, so feet never slide; stride and cadence grow with speed into a run.
+    const run = smooth((speedW - 3.0) / 2.4);
+    const duty = lerp(0.6, 0.4, run);
+    let period = lerp(0.56, 0.36, run);
+    let stride = (speedW * duty * period) / 2;
+    const maxStride = lerp(0.25, 0.36, run);
+    if (stride > maxStride) {
+      stride = maxStride;
+      period = (2 * stride) / (duty * Math.max(speedW, 0.01));
+    }
+    gaitDuty = duty;
+    gaitStride = stride;
+    gaitRun = run;
+    const before = gait;
+    if (speedW > 0.03) gait = (gait + dt / period) % 1;
+    const wrapped = gait < before;
+    const contact = wrapped || (before < 0.5 && gait >= 0.5);
+    if (contact && wWalk.x > 0.5) {
+      sproutKick.v += 0.5 + run * 1.3;
+      if (run > 0.55) puff(1, 0.35, (wrapped ? -0.2 : 0.2) * dirW);
+    }
+    // Skidding to a stop from a run kicks up a little dust.
+    if (walking && accelW * dirW < -9 && speedW > 2.2 && skidCool <= 0) {
+      puff(2, 0.6);
+      skidCool = 0.5;
+    }
+
+    const lean = (pose === "walk" ? (0.04 + 0.08 * run) * dirW : 0) + clamp(accelW * 0.018, -0.13, 0.13);
+    const peekLean = pose === "peek" ? 0.3 * motion.face : 0;
+    const crouchLean = pose === "crouch" ? 0.1 * dirW : 0;
+    leanS.t = -(lean + peekLean + crouchLean);
+    sproutLag.t = -clamp(accelW * dirW * 0.025, -0.35, 0.35);
+
+    // Dangling from your finger: a pendulum pushed by how the hand accelerates.
+    const handVx = pose === "held" ? vxW : 0;
+    const handAccel = (handVx - lastHandVx) / Math.max(dt, 1e-3);
+    lastHandVx = handVx;
+    handAx += (clamp(handAccel, -90, 90) - handAx) * Math.min(1, dt * 14);
+    const rope = HOLD_Y - CENTER_Y;
+    const drive = pose === "held" ? handAx : 0;
+    pendV += (-(30 / rope) * Math.sin(pend) - 2.4 * pendV - (drive / rope) * Math.cos(pend)) * dt;
+    pend += pendV * dt;
+    if (Math.abs(pend) > 0.62) {
+      pend = Math.sign(pend) * 0.62;
+      pendV *= -0.3;
+    }
+
+    if (pose === "air" && motion.spin) {
+      tumbleS.x += motion.spin * dt;
+      tumbleS.t = tumbleS.x;
+      tumbleS.v = 0;
+      lastSpin = motion.spin;
+    }
+
+    const face = roamFace();
+    setFace(face ?? cur, face?.blush ?? cur.blush);
+    roamArms();
+    // Props stay with him while he's settled; the laptop never comes along on a walk.
+    const settled = pose === "sit" || pose === "stand" || pose === "edgeSit";
+    (Object.keys(props) as PropName[]).forEach((k) => (props[k].w.t = cur.props.includes(k) && (settled || k === "sparkles" || k === "question") ? 1 : 0));
+  }
+
+  /** Procedural squash/stretch on top of the impulse spring. */
+  function roamSquash() {
+    const w = clamp01(wWalk.x);
+    const bob = lerp(0.5 * (1 - Math.cos(4 * Math.PI * (gait - 0.05))), 0.5 * (1 - Math.cos(4 * Math.PI * (gait - 0.19))), gaitRun);
+    const step = -0.04 * w * (1 - bob) * (1 + gaitRun) * clamp01(speedW / 1.2);
+    const air = clamp(Math.abs(motion.vy / ROAM_PPU) * 0.011, 0, 0.13) * clamp01(wAir.x);
+    const yawnStretch = 0.05 * clamp01(wYawn.x) * Math.sin(Math.PI * clamp01(1 - yawnT / 2));
+    return step + air + 0.06 * clamp01(wHeld.x) - 0.17 * clamp01(wCrouch.x) + yawnStretch;
+  }
+
+  /** After the springs step: place every roam layer. */
+  function applyRoam() {
+    const yawBase = BASE_YAW * (1 - Math.min(1, Math.abs(faceYaw.x) / WALK_YAW));
+    const shake = shakeT > 0 ? Math.sin(shakeT * 44) * 0.42 * (shakeT / 0.75) : 0;
+    yawG.rotation.y = yawBase + faceYaw.x + glanceS.x + lookYaw.x * (1 - 0.7 * clamp01(wWalk.x)) + dragYaw.x + popSpin.x + shake;
+    leanG.rotation.z = leanS.x;
+    hangG.rotation.z = pend * clamp01(wHeld.x * 1.2);
+    spinG.rotation.z = tumbleS.x + clamp01(wDizzy.x) * Math.sin(t * 5.5) * 0.11;
+    spinG.scale.set(1 - bonkS.x * 0.28, 1 + bonkS.x * 0.14, 1);
+
+    // Body: bob twice per stride (lowest just after each foot lands; a run flips that into a
+    // bounce), shift weight over the planted foot, counter-twist, sit down, nod off.
+    const w = clamp01(wWalk.x);
+    const run = gaitRun;
+    const bob = lerp(0.5 * (1 - Math.cos(4 * Math.PI * (gait - 0.05))), 0.5 * (1 - Math.cos(4 * Math.PI * (gait - 0.19))), run);
+    const bobAmp = lerp(0.045, 0.11, run) * w * clamp01(speedW / 1.2);
+    const shift = -Math.sin(2 * Math.PI * gait) * 0.045 * w;
+    const ws = clamp01(wSit.x), we = clamp01(wEdge.x), wz = clamp01(wSleep.x);
+    body.position.set(BODY_C.x + shift, BODY_C.y + bob * bobAmp - 0.17 * Math.max(ws, we), BODY_C.z);
+    body.rotation.z += -shift * 1.3 + clamp01(wDizzy.x) * Math.cos(t * 5.5) * 0.06;
+    body.rotation.x += -0.07 * ws + wz * (0.16 + Math.sin(t * 0.8) * 0.035) + clamp01(wPeek.x) * 0.12;
+    body.rotation.y = Math.cos(2 * Math.PI * gait) * 0.07 * w;
+
+    // Feet. Offsets are worked out along the screen and turned into his own frame, so a
+    // planted foot stays put on screen whichever way he's facing.
+    const yawNow = yawG.rotation.y;
+    const cy = Math.cos(yawNow), sy = Math.sin(yawNow);
+    const lift = lerp(0.13, 0.24, run) * clamp01(speedW / 0.9);
+    const turnRate = Math.abs(faceYaw.v);
+    const wa = clamp01(wAir.x), wh = clamp01(wHeld.x), wc = clamp01(wCrouch.x);
+    const awake = 1 - wz;
+    feet.forEach((f, i) => {
+      const side = i * Math.PI;
+      let fx = f.x, fy = FOOT_Y, fz = FOOT_Z, rx = 0;
+      if (w > 0.001) {
+        const p = (gait + i * 0.5) % 1;
+        let dx: number, up = 0, pitch: number;
+        if (p < gaitDuty) {
+          // planted: heel strike → flat → toe off
+          const k = p / gaitDuty;
+          dx = gaitStride * (1 - 2 * k);
+          pitch = k < 0.22 ? lerp(-0.3, 0, k / 0.22) : k > 0.7 ? lerp(0, 0.45, (k - 0.7) / 0.3) : 0;
+        } else {
+          // swinging forward in an arc
+          const k = (p - gaitDuty) / (1 - gaitDuty);
+          const e = smooth(k);
+          dx = gaitStride * (-1 + 2 * e);
+          up = lift * Math.sin(Math.PI * k);
+          pitch = lerp(0.45, -0.3, e);
+        }
+        const d = dx * dirW * w;
+        fx += d * cy;
+        fz += d * sy;
+        fy += up * w;
+        rx += pitch * w * clamp01(speedW / 0.8);
+      }
+      // Turning on the spot: a quick little shuffle instead of pivoting like a statue.
+      if (turnRate > 0.6 && w < 0.5) fy += Math.max(0, Math.sin(shuffleT * 18 + side)) * 0.06 * clamp01((turnRate - 0.6) / 2) * (1 - w);
+      // Sitting: feet out in front, soles toward you, idly swinging.
+      fz += 0.2 * ws;
+      fy -= 0.02 * ws;
+      rx += -0.7 * ws + Math.sin(t * 2.4 + side) * 0.22 * ws * awake;
+      // On an edge: feet hang over and kick.
+      fy -= 0.36 * we;
+      fz += (0.3 + Math.sin(t * 2.2 + side) * 0.05) * we;
+      rx += (-0.35 + Math.sin(t * 2.2 + side) * 0.4) * we;
+      // In the air: tucked going up, reaching down coming down, kicking in a long fall.
+      fy += (motion.vy < 0 ? 0.07 : -0.04) * wa + (fallT > 0.3 ? Math.sin(t * 15 + side) * 0.05 * wa : 0);
+      // Held up: dangling and kicking.
+      fy += (-0.05 + Math.sin(t * 12 + side) * 0.07) * wh;
+      rx += Math.sin(t * 12 + side) * 0.45 * wh;
+      // Crouched: planted a bit wider.
+      fx += (i === 0 ? -1 : 1) * 0.03 * wc;
+      f.mesh.position.set(fx, fy, fz);
+      f.mesh.rotation.x = rx;
+    });
+
+    // Sleepy Z's drift up and fade.
+    zzz.visible = wz > 0.02;
+    if (zzz.visible) {
+      zzz.children.forEach((z, i) => {
+        const k = (zPhase * 0.4 + i / 3) % 1;
+        z.position.set(0.55 + k * 0.45 + Math.sin(k * 6 + i) * 0.05, 1.95 + k * 1.05 - 0.17 * ws, 0.4);
+        z.scale.setScalar(Math.max(0.0001, (0.5 + k * 0.7) * wz));
+        z.rotation.z = -0.25 + Math.sin(k * 5 + i) * 0.15;
+        zMats[i].opacity = Math.sin(Math.PI * k) * wz;
+      });
+    }
+
+    // Dust stays where it was kicked up while the canvas moves on with him.
+    const vxW = motion.pose === "held" ? 0 : motion.vx / ROAM_PPU;
+    for (const p of puffs) {
+      if (p.life <= 0) continue;
+      p.life -= lastDt;
+      if (p.life <= 0) {
+        p.mesh.visible = false;
+        continue;
+      }
+      p.mesh.position.x += (p.vx - vxW) * lastDt;
+      p.mesh.position.y += p.vy * lastDt;
+      p.vx *= Math.exp(-lastDt * 5);
+      p.vy *= Math.exp(-lastDt * 3);
+      const k = 1 - p.life / p.max;
+      p.mesh.scale.setScalar(p.size * (0.45 + 0.9 * k));
+      p.mat.opacity = puffOpacity * Math.pow(1 - k, 1.6);
+    }
+  }
+
+  function doCue(name: FoggyCue, strength = 1) {
+    switch (name) {
+      case "land": {
+        const s = clamp01(strength);
+        sq.v -= 1.5 + 5.5 * s;
+        sproutKick.v += 2 + 5 * s;
+        puff(3 + Math.round(s * 6), 0.6 + s);
+        if (s > 0.55) ouchT = 0.35;
+        break;
+      }
+      case "bonk":
+        bonkS.v += 7 * clamp01(strength);
+        ouchT = 0.5;
+        sproutKick.v += 4;
+        break;
+      case "startle":
+        startleT = 0.75;
+        jump(3.8);
+        sproutKick.v += 4;
+        break;
+      case "yawn":
+        yawnT = 2;
+        break;
+      case "wave":
+        doWave();
+        break;
+      case "shake":
+        shakeT = 0.75;
+        sproutKick.v += 5;
+        break;
+      case "twirl":
+        dragYaw.v += (Math.random() < 0.5 ? -1 : 1) * 9;
+        sproutKick.v += 3;
+        break;
+      case "brace":
+        leanS.v += 2.4 * clamp(strength, -1, 1);
+        braceT = 0.45;
+        sproutKick.v += 2;
+        break;
+      case "grab":
+        sq.v += 2.5;
+        sproutKick.v += 4;
+        heldT = 0;
+        break;
+      case "boop":
+        doBoop();
+        break;
+    }
+  }
+
   /* ---------- loop ---------- */
   let t = 0;
+  let lastDt = 0;
 
   function update(dt: number) {
     t += dt;
+    lastDt = dt;
     if (revertTimer > 0) {
       revertTimer -= dt;
       if (revertTimer <= 0 && revertTo) {
@@ -827,15 +1365,16 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
       }
     }
 
-    // Idle life: when nobody is interacting (always the case on phones, which have no
-    // hover), glance around, wave or hop every few seconds so Foggy never looks frozen.
+    // Idle life: when nobody is interacting, glance around, wave or hop every few seconds so
+    // Foggy never looks frozen. Roaming, the page plans the bigger moves; he only glances.
     pointerIdle += dt;
     if (glanceHold > 0) glanceHold -= dt;
-    if (!reduceMotion && (curName === "hello" || curName === "cheerful") && pointerIdle > 2.5 && phase === "ground") {
+    const calm = !roam || (motion.pose === "stand" && wWalk.x < 0.05);
+    if (!reduceMotion && calm && (curName === "hello" || curName === "cheerful") && pointerIdle > 2.5 && phase === "ground") {
       idleTimer -= dt;
       if (idleTimer <= 0) {
         const roll = Math.random();
-        if (roll < 0.5) {
+        if (roll < 0.5 || roam) {
           // look somewhere else for a moment
           px = (Math.random() < 0.5 ? -1 : 1) * (0.45 + Math.random() * 0.5);
           py = Math.random() * 1.0 - 0.25;
@@ -850,7 +1389,7 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
           dragYaw.v += (Math.random() < 0.5 ? -1 : 1) * 9;
           sproutKick.v += 3;
         }
-        idleTimer = 2.2 + Math.random() * 2.3;
+        idleTimer = 2.2 + Math.random() * 2.3 + (roam ? 1.5 : 0);
       }
     }
 
@@ -863,29 +1402,45 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
     lookYaw.t = px * 0.45;
     lookPitch.t = -py * 0.18;
 
+    if (roam) {
+      stepRoam(dt);
+      zPhase += dt;
+    }
+
     const n = 3, h = dt / n;
     for (let i = 0; i < n; i++) for (const s of springs) s.step(h);
 
     const p = Math.max(0.0001, pop.x);
     root.scale.setScalar(p);
     root.position.y = jumpY;
-    root.rotation.y = BASE_YAW + lookYaw.x + dragYaw.x + popSpin.x;
-    const s = sq.x;
+    yawG.rotation.y = BASE_YAW + lookYaw.x + dragYaw.x + popSpin.x;
+    const s = sq.x + (roam ? roamSquash() : 0);
     squash.scale.set(1 - s * 0.55, 1 + s, 1 - s * 0.55);
 
-    // breathing + sway
-    const breath = reduceMotion ? 0 : Math.sin(t * 2.1) * 0.012;
+    // breathing + sway (slower and deeper asleep)
+    breathPhase += dt * (roam ? lerp(2.1, 1.1, clamp01(wSleep.x)) : 2.1);
+    const breathAmp = roam ? lerp(0.012, 0.026, clamp01(wSleep.x)) : 0.012;
+    const breath = reduceMotion ? 0 : Math.sin(breathPhase) * breathAmp;
     body.scale.set(1 - breath * 0.4, 1 + breath, 1 - breath * 0.4);
     body.rotation.z = (reduceMotion ? 0 : Math.sin(t * 1.25) * 0.025) + tilt.x;
     body.rotation.x = lookPitch.x + pitchS.x;
+    if (roam) applyRoam();
 
     // arms
-    const az = arm.Az.x;
-    let bz = arm.Bz.x, ax = arm.Ax.x, bx = arm.Bx.x;
-    if (cur.wiggle && !reduceMotion) bz += Math.sin(t * 3.2) * 0.12;
+    let az = arm.Az.x, bz = arm.Bz.x, ax = arm.Ax.x, bx = arm.Bx.x;
+    if (cur.wiggle && !reduceMotion && !roam) bz += Math.sin(t * 3.2) * 0.12;
     if (cur.typing && !reduceMotion) {
       ax += Math.sin(t * 17) * 0.1;
       bx += Math.sin(t * 17 + Math.PI) * 0.1;
+    }
+    if (roam && !reduceMotion) {
+      // swing opposite the feet; flail in a long fall; wave about while dangling or dizzy
+      const swing = Math.cos(2 * Math.PI * gait) * lerp(0.5, 0.95, gaitRun) * clamp01(wWalk.x) * clamp01(speedW / 1.0);
+      ax += swing;
+      bx -= swing;
+      const flail = (fallT > 0.3 ? clamp01(wAir.x) * 0.35 : 0) + clamp01(wHeld.x) * 0.22 + clamp01(wDizzy.x) * 0.18;
+      az += Math.sin(t * 15) * flail;
+      bz += Math.sin(t * 15 + Math.PI * 0.8) * flail;
     }
     const wa = waveAmt.x;
     bz = bz * (1 - wa) + (2.45 + Math.sin(t * 13) * 0.42) * wa;
@@ -893,8 +1448,8 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
     armA.rotation.set(ax, 0, az);
     armB.rotation.set(bx, 0, bz);
 
-    // motion marks
-    const mk = Math.max(markW.x, wa);
+    // motion marks (roaming they only show during a real wave)
+    const mk = roam ? wa : Math.max(markW.x, wa);
     marks.visible = mk > 0.02;
     markMat.opacity = Math.min(1, mk) * (0.75 + 0.25 * Math.sin(t * (wa > 0.1 ? 14 : 4)));
     marks.scale.setScalar(Math.max(0.0001, Math.min(1.2, mk)));
@@ -929,6 +1484,7 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
     const eu = lookU.x + px * 0.07, ev = lookV.x + py * 0.06;
     eyes.forEach((eye, i) => {
       placeOn(eye.holder, EYE_UV[i][0] + eu, EYE_UV[i][1] + ev, -0.012);
+      eye.variants.spiral.rotation.z = -t * 7;
       (Object.keys(eye.variants) as EyeShape[]).forEach((k) => {
         const w = Math.max(0, eye.w[k].x), v = eye.variants[k];
         v.visible = w > 0.01;
@@ -946,7 +1502,7 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
     // sprout
     const sk = sproutKick.x;
     sprout.rotation.z = (reduceMotion ? 0 : Math.sin(t * 1.7) * 0.07) + sk * 0.12;
-    sprout.rotation.x = sk * 0.05;
+    sprout.rotation.x = sk * 0.05 + sproutLag.x;
     leafL.outer.rotation.z = leafL.base + (reduceMotion ? 0 : Math.sin(t * 2.3) * 0.06) + sk * 0.1;
     leafR.outer.rotation.z = leafR.base - (reduceMotion ? 0 : Math.sin(t * 2.3 + 0.8) * 0.06) - sk * 0.1;
     sproutKick.t = 0;
@@ -982,10 +1538,16 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
 
   let sampleFrames = 0;
   let sampleTime = 0;
+  let skipNext = false;
 
   function frame(now: number) {
     frameHandle = 0;
     if (!active || disposed) return;
+    // Fast asleep, nothing moves quickly: draw every other frame to save battery.
+    if (roam && wSleep.x > 0.97 && (skipNext = !skipNext)) {
+      frameHandle = scheduleFrame(frame);
+      return;
+    }
     const raw = now - last;
     const dt = Math.min(0.033, Math.max(0, raw / 1000));
     last = now;
@@ -1021,12 +1583,31 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     const half = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    // Wider than the original demo's 1.55 so the waving arm never clips in a narrow column.
-    const needH = 1.58, needW = 1.95; // room for the taller cloud crown and sprout
-    const dist = Math.max(needH / half, needW / (half * camera.aspect));
-    camera.position.set(0, 1.3 + dist * 0.06, dist);
-    camera.lookAt(0, 1.27, 0);
-    camera.updateProjectionMatrix();
+    if (roam) {
+      // Fixed scale so he's the same size whatever the canvas; feet at ROAM_ANCHOR.
+      const halfH = height / ROAM_PPU / 2;
+      const dist = halfH / half;
+      const centreY = (2 * ROAM_ANCHOR - 1) * halfH;
+      camera.position.set(0, centreY + dist * 0.05, dist);
+      camera.lookAt(0, centreY, 0);
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld();
+      const feetAt = new V3(0, 0, 0).project(camera);
+      const holdAt = new V3(0, HOLD_Y, 0).project(camera);
+      options.onMetrics?.({
+        anchorX: ((feetAt.x + 1) / 2) * width,
+        anchorY: ((1 - feetAt.y) / 2) * height,
+        holdY: ((1 - holdAt.y) / 2) * height,
+        pxPerUnit: ROAM_PPU,
+      });
+    } else {
+      // Wider than the original demo's 1.55 so the waving arm never clips in a narrow column.
+      const needH = 1.58, needW = 1.95; // room for the taller cloud crown and sprout
+      const dist = Math.max(needH / half, needW / (half * camera.aspect));
+      camera.position.set(0, 1.3 + dist * 0.06, dist);
+      camera.lookAt(0, 1.27, 0);
+      camera.updateProjectionMatrix();
+    }
     if (!active && !firstFrame) renderer.render(scene, camera); // resizing clears the canvas
   }
   applySize();
@@ -1037,10 +1618,10 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   let down: { id: number; x: number; y: number; yaw: number; moved: number; time: number } | null = null;
 
-  // Hello! Pop in, then wave.
+  // Hello! Pop in, then wave. (Roaming, he walks in instead and the page cues the wave.)
   applyExpression("hello", false);
-  if (!reduceMotion) doPop();
-  const waveTimer = reduceMotion ? 0 : globalThis.setTimeout(doWave, 900);
+  if (!reduceMotion && !roam) doPop();
+  const waveTimer = reduceMotion || roam ? 0 : globalThis.setTimeout(doWave, 900);
 
   function disposeTree(object: THREE.Object3D) {
     const materials = new Set<THREE.Material>();
@@ -1084,8 +1665,15 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
     setTheme(dark) {
       renderer.toneMappingExposure = dark ? 0.96 : 1.04;
       rim.intensity = dark ? 1.45 : 0.85;
+      // Dust has to read on both a white page and a near-black one.
+      puffOpacity = dark ? 0.34 : 0.55;
+      puffs.forEach((p) => p.mat.color.set(dark ? 0xe6e1d6 : 0xaaa293));
       if (!active && !firstFrame) renderer.render(scene, camera);
     },
+    setMotion(next) {
+      motion = next;
+    },
+    cue: doCue,
     resize(nextWidth, nextHeight, nextRatio) {
       width = Math.max(1, nextWidth);
       height = Math.max(1, nextHeight);
@@ -1133,8 +1721,7 @@ export async function createFoggyScene(canvas: FoggyCanvas, options: FoggyOption
       globalThis.clearTimeout(waveTimer);
       disposeTree(scene);
       envTexture?.dispose();
-      renderer.dispose();
-      renderer.forceContextLoss();
+      releaseRenderer();
     },
   };
 }

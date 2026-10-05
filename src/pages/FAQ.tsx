@@ -87,9 +87,15 @@ export default function FAQ() {
           <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground max-w-[280px]">
             The short ones are here. For anything else, ask Foggy at the end of the list.
           </p>
-          {/* Desktop: sits in this sticky column. Phones: floats above the bottom dock. */}
+          {/* Desktop: sits in this sticky column. Phones: he roams the screen (rows are his ledges). */}
           <Suspense fallback={<div className="hidden md:mt-8 md:block md:h-[324px]" />}>
-            <Foggy expression={foggyExpression} interactive={!inputFocused} lookAt={foggyLookAt} className="md:mt-8" />
+            <Foggy
+              expression={foggyExpression}
+              interactive={!inputFocused}
+              lookAt={foggyLookAt}
+              watching={inputFocused ? inputRef.current : null}
+              className="md:mt-8"
+            />
           </Suspense>
         </div>
 
@@ -103,7 +109,13 @@ export default function FAQ() {
             onValueChange={setOpenItem}
           >
             {items.map((item, index) => (
-              <AccordionItem key={index} value={`item-${index}`} data-faq-item={`item-${index}`} className="border-border/40">
+              <AccordionItem
+                key={index}
+                value={`item-${index}`}
+                data-faq-item={`item-${index}`}
+                data-foggy-ledge="bottom"
+                className="border-border/40"
+              >
                 <AccordionTrigger className="text-[15px] sm:text-[16px] py-6 hover:no-underline font-normal text-foreground/90">
                   {item.q}
                 </AccordionTrigger>
@@ -123,7 +135,7 @@ export default function FAQ() {
           </Accordion>
 
           {/* AI Input Field (Styled as an accordion row) */}
-          <div className="relative flex items-center border-b border-border/40 group">
+          <div data-foggy-ledge="bottom" className="relative flex items-center border-b border-border/40 group">
             <form onSubmit={handleSubmit} className="w-full flex items-center">
               <input
                 ref={inputRef}

@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
-import type { FoggyController, FoggyExpression } from "./foggy-scene";
-import { applyCommand, createCommandBuffer, type FoggyCommand, type FoggyEvent, type FoggyInit, type FoggyWorkerMessage } from "./foggy-messages";
+import { PHONE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
+import type { FoggyExpression } from "./foggy-scene";
+import type { FoggyCommand, FoggyEvent, FoggyInit } from "./foggy-messages";
+import { startFoggy, type FoggyDriver } from "./foggy-driver";
+import { createRoamer, type FoggyRoamer } from "./foggy-roam";
 
 export type { FoggyExpression };
 
@@ -10,7 +14,7 @@ interface FoggyProps {
   expression: FoggyExpression;
   /**
    * When false, taps pass straight through Foggy. The FAQ turns this off on phones while
-   * you're typing, so the floating companion can never sit on top of the send button.
+   * you're typing, so he can never sit on top of the send button.
    */
   interactive?: boolean;
   /**
@@ -18,85 +22,31 @@ interface FoggyProps {
    * set, it overrides following the cursor, taps and scrolling.
    */
   lookAt?: HTMLElement | null;
+  /** Phones: a box you're typing in. He goes and watches from just above it, out of its way. */
+  watching?: HTMLElement | null;
   className?: string;
 }
 
-interface Driver {
-  send(command: FoggyCommand): void;
-  dispose(): void;
-}
-
-/** Preferred: the whole scene lives in a worker, drawing into an OffscreenCanvas. */
-function startInWorker(canvas: HTMLCanvasElement, init: FoggyInit, onEvent: (event: FoggyEvent) => void): Driver | null {
-  if (typeof Worker === "undefined" || typeof canvas.transferControlToOffscreen !== "function") return null;
-  let worker: Worker;
-  try {
-    worker = new Worker(new URL("./foggy.worker.ts", import.meta.url), { type: "module" });
-  } catch {
-    return null;
-  }
-  const offscreen = canvas.transferControlToOffscreen();
-  worker.onmessage = (event: MessageEvent<FoggyEvent>) => onEvent(event.data);
-  worker.onerror = () => onEvent({ type: "unsupported" });
-  const initMessage: FoggyWorkerMessage = { type: "init", canvas: offscreen, ...init };
-  worker.postMessage(initMessage, [offscreen]);
-  return {
-    send: (command) => worker.postMessage(command),
-    dispose: () => {
-      worker.postMessage({ type: "dispose" } satisfies FoggyWorkerMessage);
-      window.setTimeout(() => worker.terminate(), 1000); // give it a moment to free the GPU context
-    },
-  };
-}
-
-/** Fallback for browsers without OffscreenCanvas WebGL: same scene on the page thread. */
-function startOnPage(canvas: HTMLCanvasElement, init: FoggyInit, onEvent: (event: FoggyEvent) => void): Driver {
-  let controller: FoggyController | null = null;
-  let cancelled = false;
-  const pending = createCommandBuffer();
-
-  import("./foggy-scene")
-    .then(({ createFoggyScene }) =>
-      createFoggyScene(canvas, {
-        ...init,
-        isCancelled: () => cancelled,
-        onQuality: (quality) => onEvent({ type: "quality", quality }),
-        onFirstFrame: () => onEvent({ type: "firstFrame" }),
-        onMoodChange: (label) => onEvent({ type: "mood", label }),
-        onBoop: () => onEvent({ type: "boop" }),
-      }),
-    )
-    .then((created) => {
-      if (!created) return;
-      if (cancelled) {
-        created.dispose();
-        return;
-      }
-      controller = created;
-      pending.flush(created);
-    })
-    .catch(() => onEvent({ type: "unsupported" }));
-
-  return {
-    send: (command) => (controller ? applyCommand(controller, command) : pending.remember(command)),
-    dispose: () => {
-      cancelled = true;
-      controller?.dispose();
-      controller = null;
-    },
-  };
-}
+const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const isDark = () => document.documentElement.classList.contains("dark");
 
 /**
  * Foggy, the 3D CampusFind assistant. Lazy-load this component.
  *
- * Phones: a small companion floating above the bottom dock, visible however far you scroll.
+ * Phones: he roams the screen — walks the dock, climbs the page, can be picked up and thrown.
  * Desktop (md+): a larger stage in normal flow (the FAQ makes its column sticky).
- * Renders only while visible and the tab is active; frees the GPU when unmounted.
+ * Either way the 3D work runs in a worker, only while visible, and frees the GPU when unmounted.
  */
-export default function Foggy({ expression, interactive = true, lookAt = null, className }: FoggyProps) {
+export default function Foggy(props: FoggyProps) {
+  const phone = useMediaQuery(PHONE_QUERY);
+  return phone ? <FoggyRoam {...props} /> : <FoggyStage {...props} />;
+}
+
+/* ───────────────────────── Desktop: a stage on the page ───────────────────────── */
+
+function FoggyStage({ expression, interactive = true, lookAt = null, className }: FoggyProps) {
   const stageRef = useRef<HTMLDivElement>(null);
-  const driverRef = useRef<Driver | null>(null);
+  const driverRef = useRef<FoggyDriver | null>(null);
   const expressionRef = useRef(expression);
   const lookAtRef = useRef(lookAt);
   const lookTowardRef = useRef<((clientX: number, clientY: number) => void) | null>(null);
@@ -137,15 +87,15 @@ export default function Foggy({ expression, interactive = true, lookAt = null, c
     // Start after the page has painted so the FAQ text never waits on Foggy.
     const start = () => {
       if (disposed) return;
-      const init: FoggyInit = { ...measure(), reduceMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches };
-      driverRef.current = startInWorker(canvas, init, onEvent) ?? startOnPage(canvas, init, onEvent);
+      const init: FoggyInit = { ...measure(), reduceMotion: reducedMotion(), mode: "stage" };
+      driverRef.current = startFoggy(canvas, init, onEvent);
       sendTheme();
       send({ type: "expression", value: expressionRef.current });
       syncActive();
     };
 
     // Follow the site's light/dark switch (a "dark" class on <html>).
-    const sendTheme = () => send({ type: "theme", dark: document.documentElement.classList.contains("dark") });
+    const sendTheme = () => send({ type: "theme", dark: isDark() });
     const themeObserver = new MutationObserver(sendTheme);
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     const idle = window.requestIdleCallback
@@ -162,11 +112,10 @@ export default function Foggy({ expression, interactive = true, lookAt = null, c
     const resizeObserver = new ResizeObserver(() => send({ type: "resize", ...measure() }));
     resizeObserver.observe(stage);
 
-    // Turn Foggy toward a point on screen. On phones he's small and tucked in a corner, so
-    // the same distance counts for more (a shorter reach) and the glance reads clearly.
+    // Turn Foggy toward a point on screen.
     const lookToward = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
-      const reach = window.innerWidth < 768 ? 230 : 420;
+      const reach = 420;
       send({
         type: "look",
         x: (clientX - (rect.left + rect.width / 2)) / reach,
@@ -186,7 +135,6 @@ export default function Foggy({ expression, interactive = true, lookAt = null, c
         if (lastPointer && !lookAtRef.current) lookToward(lastPointer.clientX, lastPointer.clientY);
       });
     };
-    // Phones have no hover: look at wherever you tap instead.
     const onWindowPointerDown = (event: PointerEvent) => {
       if (!lookAtRef.current) lookToward(event.clientX, event.clientY);
     };
@@ -262,7 +210,7 @@ export default function Foggy({ expression, interactive = true, lookAt = null, c
     driverRef.current?.send({ type: "expression", value: expression });
   }, [expression]);
 
-  // Keep looking at the target (it can move as the page scrolls or the keyboard opens).
+  // Keep looking at the target (it can move as the page scrolls).
   useEffect(() => {
     if (!lookAt) return;
     const aim = () => {
@@ -280,11 +228,7 @@ export default function Foggy({ expression, interactive = true, lookAt = null, c
   return (
     <figure
       className={cn(
-        "m-0 flex select-none flex-col",
-        // Phones: floating companion above the mobile dock
-        "fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] right-1 z-40 h-[122px] w-[124px]",
-        // Desktop: stage in the page flow
-        "md:static md:z-auto md:h-[300px] md:w-full",
+        "m-0 flex h-[300px] w-full select-none flex-col",
         "transition-opacity duration-500",
         ready ? "opacity-100" : "opacity-0",
         !interactive && "pointer-events-none",
@@ -293,7 +237,7 @@ export default function Foggy({ expression, interactive = true, lookAt = null, c
     >
       <div className="relative min-h-0 flex-1">
         {/* Soft spotlight that fades out before the edges, so there's never a visible box. */}
-        <div className="absolute inset-0 hidden bg-[radial-gradient(closest-side_at_50%_45%,hsl(var(--secondary))_0%,transparent_100%)] md:block" />
+        <div className="absolute inset-0 bg-[radial-gradient(closest-side_at_50%_45%,hsl(var(--secondary))_0%,transparent_100%)]" />
         <div
           ref={stageRef}
           role="img"
@@ -301,7 +245,7 @@ export default function Foggy({ expression, interactive = true, lookAt = null, c
           className="relative h-full w-full cursor-grab active:cursor-grabbing"
         />
       </div>
-      <figcaption className="pointer-events-none mt-2 hidden shrink-0 items-center justify-center gap-1.5 text-[12.5px] text-muted-foreground md:flex">
+      <figcaption className="pointer-events-none mt-2 flex shrink-0 items-center justify-center gap-1.5 text-[12.5px] text-muted-foreground">
         <span>
           Feeling <b className="font-semibold text-foreground">{mood}</b>
         </span>
@@ -313,5 +257,191 @@ export default function Foggy({ expression, interactive = true, lookAt = null, c
         </span>
       </figcaption>
     </figure>
+  );
+}
+
+/* ───────────────────────── Phones: he roams the screen ───────────────────────── */
+
+/** Canvas size, CSS px. Much bigger than Foggy so swings, tumbles and props never clip. */
+const FIGURE = 168;
+
+function FoggyRoam({ expression, interactive = true, lookAt = null, watching = null }: FoggyProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const figureRef = useRef<HTMLDivElement>(null);
+  const shadowRef = useRef<HTMLDivElement>(null);
+  const hitRef = useRef<HTMLDivElement>(null);
+  const driverRef = useRef<FoggyDriver | null>(null);
+  const roamerRef = useRef<FoggyRoamer | null>(null);
+  const expressionRef = useRef(expression);
+  const lookAtRef = useRef(lookAt);
+  const lookTowardRef = useRef<((clientX: number, clientY: number) => void) | null>(null);
+  const [ready, setReady] = useState(false);
+  const [unsupported, setUnsupported] = useState(false);
+
+  expressionRef.current = expression;
+  lookAtRef.current = lookAt;
+
+  useEffect(() => {
+    const root = rootRef.current, figure = figureRef.current, shadow = shadowRef.current, hit = hitRef.current;
+    if (!root || !figure || !shadow || !hit) return;
+
+    let disposed = false;
+    const reduceMotion = reducedMotion();
+    const canvas = document.createElement("canvas");
+    Object.assign(canvas.style, { display: "block", width: "100%", height: "100%" });
+    figure.appendChild(canvas);
+
+    const send = (command: FoggyCommand) => driverRef.current?.send(command);
+    const roamer = createRoamer({ root, figure, shadow, hit }, { reduceMotion, send });
+    roamerRef.current = roamer;
+    // Dev only: poke him from the console (window.__foggy.act("explore")).
+    if (import.meta.env.DEV) (window as unknown as { __foggy?: FoggyRoamer }).__foggy = roamer;
+
+    // He walks in once the scene has drawn and told us where his feet are.
+    let haveMetrics = false, haveFrame = false;
+    const maybeStart = () => {
+      if (!haveMetrics || !haveFrame || disposed) return;
+      roamer.start();
+      setReady(true);
+    };
+    const onEvent = (event: FoggyEvent) => {
+      if (disposed) return;
+      if (event.type === "metrics") {
+        roamer.setMetrics(event);
+        haveMetrics = true;
+        maybeStart();
+      } else if (event.type === "firstFrame") {
+        haveFrame = true;
+        maybeStart();
+      } else if (event.type === "unsupported") {
+        roamer.dispose();
+        setUnsupported(true);
+      }
+    };
+
+    const syncActive = () => send({ type: "active", value: document.visibilityState === "visible" });
+    const sendTheme = () => send({ type: "theme", dark: isDark() });
+    const start = () => {
+      if (disposed) return;
+      const init: FoggyInit = { width: FIGURE, height: FIGURE, devicePixelRatio: window.devicePixelRatio || 1, reduceMotion, mode: "roam" };
+      driverRef.current = startFoggy(canvas, init, onEvent);
+      sendTheme();
+      send({ type: "expression", value: expressionRef.current });
+      syncActive();
+    };
+    const themeObserver = new MutationObserver(sendTheme);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    const idle = window.requestIdleCallback
+      ? window.requestIdleCallback(start, { timeout: 600 })
+      : window.setTimeout(start, 60);
+
+    // Turn his head toward a point on screen, from wherever he is right now.
+    const lookToward = (clientX: number, clientY: number) => {
+      const c = roamer.center();
+      send({ type: "look", x: (clientX - c.x) / 230, y: -(clientY - c.y) / 230 });
+    };
+    lookTowardRef.current = lookToward;
+
+    // Anything you do on the page makes him hold still (and look at where you tapped).
+    const onWindowPointerDown = (event: PointerEvent) => {
+      if (hit.contains(event.target as Node)) return;
+      roamer.noteActivity("touch");
+      if (!lookAtRef.current) lookToward(event.clientX, event.clientY);
+    };
+    let scrollFrame = 0;
+    let lastScrollY = window.scrollY;
+    const onScroll = () => {
+      roamer.noteActivity("scroll");
+      if (scrollFrame) return;
+      scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = 0;
+        const delta = window.scrollY - lastScrollY;
+        lastScrollY = window.scrollY;
+        if (Math.abs(delta) < 2 || lookAtRef.current) return;
+        const c = roamer.center();
+        lookToward(c.x, c.y - Math.max(-320, Math.min(320, delta * 10)));
+      });
+    };
+    const onKeyDown = () => roamer.noteActivity("key");
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      syncActive();
+      if (document.visibilityState === "hidden") hiddenAt = performance.now();
+      else if (hiddenAt) roamer.welcomeBack(performance.now() - hiddenAt);
+    };
+
+    const down = (event: PointerEvent) => roamer.pointerDown(event);
+    const move = (event: PointerEvent) => roamer.pointerMove(event);
+    const up = (event: PointerEvent) => roamer.pointerUp(event);
+    const cancel = (event: PointerEvent) => roamer.pointerCancel(event);
+    const noMenu = (event: Event) => event.preventDefault(); // long-press picks him up, not a menu
+
+    window.addEventListener("pointerdown", onWindowPointerDown, { passive: true, capture: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("visibilitychange", onVisibility);
+    hit.addEventListener("pointerdown", down);
+    hit.addEventListener("pointermove", move);
+    hit.addEventListener("pointerup", up);
+    hit.addEventListener("pointercancel", cancel);
+    hit.addEventListener("contextmenu", noMenu);
+
+    return () => {
+      disposed = true;
+      if (window.cancelIdleCallback) window.cancelIdleCallback(idle);
+      else window.clearTimeout(idle);
+      themeObserver.disconnect();
+      window.removeEventListener("pointerdown", onWindowPointerDown, { capture: true });
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("visibilitychange", onVisibility);
+      hit.removeEventListener("pointerdown", down);
+      hit.removeEventListener("pointermove", move);
+      hit.removeEventListener("pointerup", up);
+      hit.removeEventListener("pointercancel", cancel);
+      hit.removeEventListener("contextmenu", noMenu);
+      cancelAnimationFrame(scrollFrame);
+      lookTowardRef.current = null;
+      roamer.dispose();
+      roamerRef.current = null;
+      driverRef.current?.dispose();
+      driverRef.current = null;
+      canvas.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    driverRef.current?.send({ type: "expression", value: expression });
+  }, [expression]);
+
+  useEffect(() => {
+    roamerRef.current?.setContext({ busy: expression === "typing", focus: watching, interactive });
+  }, [expression, watching, interactive]);
+
+  useEffect(() => {
+    if (!lookAt) return;
+    const aim = () => {
+      const rect = lookAt.getBoundingClientRect();
+      lookTowardRef.current?.(rect.left + Math.min(rect.width * 0.3, 160), rect.top + rect.height / 2);
+    };
+    aim();
+    const timer = window.setInterval(aim, 150);
+    return () => window.clearInterval(timer);
+  }, [lookAt]);
+
+  if (unsupported) return null;
+
+  return createPortal(
+    <div ref={rootRef} className={cn("foggy-roam", ready && "is-ready")}>
+      <div ref={shadowRef} className="foggy-roam-shadow" aria-hidden />
+      <div ref={figureRef} className="foggy-roam-figure" aria-hidden />
+      <div
+        ref={hitRef}
+        role="img"
+        aria-label="Foggy, the CampusFind assistant. Tap to boop him; press and drag to carry him anywhere."
+        className="foggy-roam-hit"
+      />
+    </div>,
+    document.body,
   );
 }
