@@ -74,13 +74,29 @@ function AppShell() {
   const { pathname } = useLocation();
   useNotificationRealtime();
 
+  const showFooter =
+    !pathname.startsWith("/items") &&
+    !pathname.startsWith("/dashboard") &&
+    pathname !== "/post" &&
+    pathname !== "/auth" &&
+    pathname !== "/";
+  // The footer carries the space for the floating dock on phones; pages without it need their
+  // own, or the end of the page sits under the dock.
+  const dockClearance = !showFooter && pathname !== "/" && pathname !== "/auth";
+
   return (
     <>
       <AuthCurtain />
       <div className="flex min-h-screen flex-col">
         {pathname !== "/auth" && <Navbar />}
         {pathname !== "/auth" && <MobileDock />}
-        <main className={cn("page-shell", pathname !== "/" && pathname !== "/auth" && "pt-14")}>
+        <main
+          className={cn(
+            "page-shell",
+            pathname !== "/" && pathname !== "/auth" && "pt-14",
+            dockClearance && "pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-0",
+          )}
+        >
           <Suspense fallback={<RouteFallback />}>
             <PageTransition>
               <Routes>
@@ -98,11 +114,7 @@ function AppShell() {
               </Routes>
             </PageTransition>
           </Suspense>
-          {!pathname.startsWith("/items") &&
-            !pathname.startsWith("/dashboard") &&
-            pathname !== "/post" &&
-            pathname !== "/auth" &&
-            pathname !== "/" && <Footer />}
+          {showFooter && <Footer />}
         </main>
       </div>
     </>
